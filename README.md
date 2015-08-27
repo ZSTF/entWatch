@@ -1,6 +1,6 @@
 # entWatch
 
-A Counter-Strike: Source entity monitoring plugin written in Sourcemod.
+A Counter-Strike: Source entity monitoring plugin written for SourceMod (in SourcePawn).
 
 The focus of entWatch is to monitor special map items found in Zombie Reloaded based maps.
 
@@ -18,7 +18,7 @@ You need to follow a few simple instructions to install entWatch:
 
 1. Download entWatch by clicking the neat "Download ZIP" button to the right of our github page.
 2. Extract the entWatch-master.zip on your local hard drive and move the contents to your cstrike folder, making sure you merge with the addons and cfg folder.
-3. Load one of the supported maps and make sure the plugin is function correctly.
+3. Load one of the supported maps and make sure the plugin is functioning correctly.
 
 ## Supported Maps
 
@@ -50,4 +50,4 @@ $ ze_tesv_skyrim_v4fix.cfg
 $ ze_ut2004_convoy_v2_1.cfg
 ```
 
-If you don't see your map listed feel free to submit your own config or ask us nicely to build you one!
+If you don't see your map listed here feel free to submit your own config or ask us nicely to build you one!
