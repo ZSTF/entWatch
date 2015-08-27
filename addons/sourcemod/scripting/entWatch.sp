@@ -12,7 +12,7 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.2.9"
+#define PLUGIN_VERSION "3.3.0"
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Entity data
@@ -87,7 +87,7 @@ new bool:G_bConfigLoaded     = false;
 public Plugin:myinfo =
 {
 	name         = "entWatch",
-	author       = "Prometheum & zaCade",
+	author       = "Prometheum & zaCade. Edits: George & Obus",
 	description  = "Notify players about entity interactions.",
 	version      = PLUGIN_VERSION,
 	url          = "https://github.com/zaCade/entWatch"
@@ -1124,12 +1124,21 @@ stock LoadConfig()
 	new Handle:hKeyValues = CreateKeyValues("entities");
 	new String:buffer_map[128];
 	new String:buffer_path[PLATFORM_MAX_PATH];
+	new String:buffer_path_override[PLATFORM_MAX_PATH];
 	new String:buffer_temp[32];
 	new buffer_amount;
 	
 	GetCurrentMap(buffer_map, sizeof(buffer_map));
 	Format(buffer_path, sizeof(buffer_path), "cfg/sourcemod/entwatch/maps/%s.cfg", buffer_map);
-	FileToKeyValues(hKeyValues, buffer_path);
+	Format(buffer_path_override, sizeof(buffer_path_override), "cfg/sourcemod/entwatch/maps/%s_override.cfg", buffer_map);
+	if(FileExists(buffer_path_override))
+	{
+		FileToKeyValues(hKeyValues, buffer_path_override);
+	}
+	else
+	{
+		FileToKeyValues(hKeyValues, buffer_path);
+	}
 	
 	LogMessage("Loading %s", buffer_path);
 	
