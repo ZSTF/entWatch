@@ -4,6 +4,13 @@ A Counter-Strike: Source entity monitoring plugin written in Sourcemod.
 
 The focus of entWatch is to monitor special map items found in Zombie Reloaded based maps.
 
+## Added Features
+This version of entWatch adds:
+ - Dynamic Cooldown support (requested by Skullz)
+ - Trigger support
+ - Extended Comms style ebans
+ - A non working reload config command :>
+
 ## Setup
 
 You need to follow a few simple instructions to install entWatch:
