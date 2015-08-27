@@ -12,10 +12,10 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.0.3"
+#define PLUGIN_VERSION "3.2.9"
 
 //----------------------------------------------------------------------------------------------------
-// Purpose: Entity Data
+// Purpose: Entity data
 //----------------------------------------------------------------------------------------------------
 enum entities
 {
@@ -43,9 +43,11 @@ enum entities
 
 new entArray[512][entities];
 new entArraySize = 512;
+new triggerArray[512];
+new triggerSize = 512; 
 
 //----------------------------------------------------------------------------------------------------
-// Purpose: Color Settings
+// Purpose: Color settings
 //----------------------------------------------------------------------------------------------------
 new String:color_tag[16]         = "E01B5D";
 new String:color_name[16]        = "EDEDED";
@@ -58,16 +60,18 @@ new String:color_death[16]       = "F1B567";
 new String:color_warning[16]     = "F16767";
 
 //----------------------------------------------------------------------------------------------------
-// Purpose: Client Settings
+// Purpose: Client settings
 //----------------------------------------------------------------------------------------------------
 new Handle:G_hCookie_Display     = INVALID_HANDLE;
 new Handle:G_hCookie_Restricted  = INVALID_HANDLE;
+new Handle:G_hCookie_RestrictedLength = INVALID_HANDLE;
 
 new bool:G_bDisplay[MAXPLAYERS + 1]     = false;
 new bool:G_bRestricted[MAXPLAYERS + 1]  = false;
+new G_iRestrictedLength[MAXPLAYERS + 1];
 
 //----------------------------------------------------------------------------------------------------
-// Purpose: Plugin Settings
+// Purpose: Plugin settings
 //----------------------------------------------------------------------------------------------------
 new Handle:G_hCvar_DisplayEnabled    = INVALID_HANDLE;
 new Handle:G_hCvar_DisplayCooldowns  = INVALID_HANDLE;
@@ -78,7 +82,7 @@ new bool:G_bRoundTransition  = false;
 new bool:G_bConfigLoaded     = false;
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Plugin information
 //----------------------------------------------------------------------------------------------------
 public Plugin:myinfo =
 {
@@ -90,7 +94,7 @@ public Plugin:myinfo =
 };
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Plugin initialization
 //----------------------------------------------------------------------------------------------------
 public OnPluginStart()
 {
@@ -103,6 +107,7 @@ public OnPluginStart()
 	
 	G_hCookie_Display     = RegClientCookie("entwatch_display", "", CookieAccess_Private);
 	G_hCookie_Restricted  = RegClientCookie("entwatch_restricted", "", CookieAccess_Private);
+	G_hCookie_RestrictedLength = RegClientCookie("entwatch_restrictedlength", "", CookieAccess_Private);
 	
 	RegConsoleCmd("sm_hud", Command_ToggleHUD);
 	RegConsoleCmd("sm_status", Command_Status);
@@ -110,6 +115,8 @@ public OnPluginStart()
 	RegAdminCmd("sm_eban", Command_Restrict, ADMFLAG_BAN);
 	RegAdminCmd("sm_eunban", Command_Unrestrict, ADMFLAG_BAN);
 	RegAdminCmd("sm_etransfer", Command_Transfer, ADMFLAG_BAN);
+	RegAdminCmd("sm_setcooldown", Command_Cooldown, ADMFLAG_BAN); 
+	RegAdminCmd("sm_ew_reloadconfig", Command_ReloadConfig, ADMFLAG_CONFIG);
 	
 	HookEvent("round_start", Event_RoundStart, EventHookMode_Pre);
 	HookEvent("round_end", Event_RoundEnd, EventHookMode_Pre);
@@ -125,7 +132,7 @@ public OnPluginStart()
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Set variables
 //----------------------------------------------------------------------------------------------------
 public OnMapStart()
 {
@@ -153,12 +160,17 @@ public OnMapStart()
 		entArray[index][ent_cooldowntime]   = -1;
 	}
 	
+	for (new index = 0; index < triggerSize; index++)
+	{
+		triggerArray[index] = 0;
+	}
+	
 	LoadColors();
 	LoadConfig();
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Hook RoundStart event
 //----------------------------------------------------------------------------------------------------
 public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
@@ -171,7 +183,7 @@ public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroad
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Hook RoundEnd event
 //----------------------------------------------------------------------------------------------------
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
@@ -192,7 +204,7 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Set client cookies once cached
 //----------------------------------------------------------------------------------------------------
 public OnClientCookiesCached(client)
 {
@@ -200,12 +212,24 @@ public OnClientCookiesCached(client)
 	GetClientCookie(client, G_hCookie_Display, buffer_cookie, sizeof(buffer_cookie));
 	G_bDisplay[client] = bool:StringToInt(buffer_cookie);
 	
-	GetClientCookie(client, G_hCookie_Restricted, buffer_cookie, sizeof(buffer_cookie));
-	G_bRestricted[client] = bool:StringToInt(buffer_cookie);
+	//GetClientCookie(client, G_hCookie_Restricted, buffer_cookie, sizeof(buffer_cookie));
+	//G_bRestricted[client] = bool:StringToInt(buffer_cookie);
+	
+	GetClientCookie(client, G_hCookie_RestrictedLength, buffer_cookie, sizeof(buffer_cookie));
+	
+	if (StringToInt(buffer_cookie) != 1 && StringToInt(buffer_cookie) <= GetTime())
+	{
+		G_iRestrictedLength[client] = 0;
+		SetClientCookie(client, G_hCookie_RestrictedLength, "0");
+	}
+	else
+	{
+		G_iRestrictedLength[client] = StringToInt(buffer_cookie);
+	}
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Hook weapons and update banned clients to new method
 //----------------------------------------------------------------------------------------------------
 public OnClientPutInServer(client)
 {
@@ -213,15 +237,29 @@ public OnClientPutInServer(client)
 	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquip);
 	SDKHook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
 	
+	G_bRestricted[client] = false;
+	
 	if (!AreClientCookiesCached(client))
 	{
 		G_bDisplay[client] = false;
-		G_bRestricted[client] = false;
+		//G_bRestricted[client] = false;
+		G_iRestrictedLength[client] = 0;
+	}
+	else
+	{
+		decl String:restricted[32];
+		GetClientCookie(client, G_hCookie_Restricted, restricted, sizeof(restricted));
+		
+		if (StringToInt(restricted) == 1)
+		{
+			SetClientCookie(client, G_hCookie_RestrictedLength, "1");
+			SetClientCookie(client, G_hCookie_Restricted, "0");
+		}
 	}
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Notify of Disconnect if they had a special weapon and unhook weapons
 //----------------------------------------------------------------------------------------------------
 public OnClientDisconnect(client)
 {
@@ -239,7 +277,7 @@ public OnClientDisconnect(client)
 				if (entArray[index][ent_chat])
 				{
 					new String:buffer_steamid[32];
-					GetClientAuthString(client, buffer_steamid, sizeof(buffer_steamid));
+					GetClientAuthId(client, AuthId_Steam2, buffer_steamid, sizeof(buffer_steamid));
 					ReplaceString(buffer_steamid, sizeof(buffer_steamid), "STEAM_", "", true);
 					
 					for (new ply = 1; ply <= MaxClients; ply++)
@@ -263,10 +301,11 @@ public OnClientDisconnect(client)
 	
 	G_bDisplay[client] = false;
 	G_bRestricted[client] = false;
+	G_iRestrictedLength[client] = 0;
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Notify of Death if they had a special weapon
 //----------------------------------------------------------------------------------------------------
 public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
@@ -286,7 +325,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 				if (entArray[index][ent_chat])
 				{
 					new String:buffer_steamid[32];
-					GetClientAuthString(client, buffer_steamid, sizeof(buffer_steamid));
+					GetClientAuthId(client, AuthId_Steam2, buffer_steamid, sizeof(buffer_steamid));
 					ReplaceString(buffer_steamid, sizeof(buffer_steamid), "STEAM_", "", true);
 					
 					for (new ply = 1; ply <= MaxClients; ply++)
@@ -306,7 +345,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Notify when they pick up a special weapon
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponEquip(client, weapon)
 {
@@ -323,7 +362,7 @@ public Action:OnWeaponEquip(client, weapon)
 					if (entArray[index][ent_chat])
 					{
 						new String:buffer_steamid[32];
-						GetClientAuthString(client, buffer_steamid, sizeof(buffer_steamid));
+						GetClientAuthId(client, AuthId_Steam2, buffer_steamid, sizeof(buffer_steamid));
 						ReplaceString(buffer_steamid, sizeof(buffer_steamid), "STEAM_", "", true);
 						
 						for (new ply = 1; ply <= MaxClients; ply++)
@@ -346,7 +385,7 @@ public Action:OnWeaponEquip(client, weapon)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Notify when they drop a special weapon
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponDrop(client, weapon)
 {
@@ -363,7 +402,7 @@ public Action:OnWeaponDrop(client, weapon)
 					if (entArray[index][ent_chat])
 					{
 						new String:buffer_steamid[32];
-						GetClientAuthString(client, buffer_steamid, sizeof(buffer_steamid));
+						GetClientAuthId(client, AuthId_Steam2, buffer_steamid, sizeof(buffer_steamid));
 						ReplaceString(buffer_steamid, sizeof(buffer_steamid), "STEAM_", "", true);
 						
 						for (new ply = 1; ply <= MaxClients; ply++)
@@ -386,7 +425,7 @@ public Action:OnWeaponDrop(client, weapon)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Prevent banned players from picking up special weapons
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponCanUse(client, weapon)
 {
@@ -427,10 +466,30 @@ public Action:OnWeaponCanUse(client, weapon)
 				if (entArray[index][ent_weaponid] == weapon)
 				{
 					if (entArray[index][ent_blockpickup])
+					{
 						return Plugin_Handled;
+					}
 					
 					if (G_bRestricted[client])
+					{
 						return Plugin_Handled;
+					}
+					
+					if (G_iRestrictedLength[client] != 1 && G_iRestrictedLength[client] != 0 && G_iRestrictedLength[client] <= GetTime())
+					{
+						//G_bRestricted[client] = false;
+						G_iRestrictedLength[client] = 0;
+						
+						SetClientCookie(client, G_hCookie_RestrictedLength, "0");
+						//SetClientCookie(client, G_hCookie_Restricted, "0");
+						
+						return Plugin_Continue;
+					}
+					
+					if (G_iRestrictedLength[client] > GetTime() || G_iRestrictedLength[client] == 1)
+					{
+						return Plugin_Handled;
+					}
 					
 					return Plugin_Continue;
 				}
@@ -442,7 +501,7 @@ public Action:OnWeaponCanUse(client, weapon)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Notify when they use a special weapon
 //----------------------------------------------------------------------------------------------------
 public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 {
@@ -459,7 +518,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 					DispatchKeyValue(activator, "targetname", entArray[index][ent_filtername]);
 				
 				new String:buffer_steamid[32];
-				GetClientAuthString(activator, buffer_steamid, sizeof(buffer_steamid));
+				GetClientAuthId(activator, AuthId_Steam2, buffer_steamid, sizeof(buffer_steamid));
 				ReplaceString(buffer_steamid, sizeof(buffer_steamid), "STEAM_", "", true);
 				
 				if (entArray[index][ent_mode] == 1)
@@ -547,7 +606,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Display current special weapon holders
 //----------------------------------------------------------------------------------------------------
 public Action:Timer_DisplayHUD(Handle:timer)
 {
@@ -562,7 +621,7 @@ public Action:Timer_DisplayHUD(Handle:timer)
 				if (entArray[index][ent_hud] && entArray[index][ent_ownerid] != -1)
 				{
 					new String:buffer_temp[128];
-				
+					
 					if (GetConVarBool(G_hCvar_DisplayCooldowns))
 					{
 						if (entArray[index][ent_mode] == 2)
@@ -664,7 +723,7 @@ public Action:Timer_DisplayHUD(Handle:timer)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Calculate cooldown time
 //----------------------------------------------------------------------------------------------------
 public Action:Timer_Cooldowns(Handle:timer)
 {
@@ -681,7 +740,7 @@ public Action:Timer_Cooldowns(Handle:timer)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Toggle HUD
 //----------------------------------------------------------------------------------------------------
 public Action:Command_ToggleHUD(client, args)
 {
@@ -709,14 +768,137 @@ public Action:Command_ToggleHUD(client, args)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Check status
 //----------------------------------------------------------------------------------------------------
 public Action:Command_Status(client, args)
 {
+	if (args > 0 && CheckCommandAccess(client, "", ADMFLAG_BAN, true))
+	{
+		decl String:Arguments[64];
+		decl String:CStatus[64];
+		new target = -1;
+		GetCmdArg(1, Arguments, sizeof(Arguments));
+		target = FindTarget(client, Arguments);
+		
+		if (target == -1)
+		{
+			return Plugin_Handled;
+		}
+		
+		if (AreClientCookiesCached(target))
+		{
+			GetClientCookie(target, G_hCookie_RestrictedLength, CStatus, sizeof(CStatus));
+			
+			if (G_bRestricted[target])
+			{
+				CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x04%N\x07%s is temporarily restricted.", color_tag, color_warning, target, color_warning);
+				
+				return Plugin_Handled;
+			}
+			
+			if (StringToInt(CStatus) == 0)
+			{
+				CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x04%N\x07%s is not restricted.", color_tag, color_warning, target, color_warning);
+				
+				return Plugin_Handled;
+			}
+			else if (StringToInt(CStatus) == 1)
+			{
+				CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x04%N\x07%s is permanently restricted.", color_tag, color_warning, target, color_warning);
+				
+				return Plugin_Handled; 
+			}
+			else if (StringToInt(CStatus) <= GetTime())
+			{
+				CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x04%N\x07%s is not restricted.", color_tag, color_warning, target, color_warning);
+				G_iRestrictedLength[target] = 0;
+				SetClientCookie(target, G_hCookie_RestrictedLength, "0");
+				
+				return Plugin_Handled;
+			}
+			
+			decl String:RemainingTime[128];
+			decl String:FRemainingTime[128];
+			GetClientCookie(target, G_hCookie_RestrictedLength, RemainingTime, sizeof(RemainingTime));
+			new tstamp = (StringToInt(RemainingTime) - GetTime());
+			
+			new days = (tstamp / 86400);
+			new hours = ((tstamp / 3600) % 24);
+			new minutes = ((tstamp / 60) % 60);
+			new seconds = (tstamp % 60);
+			
+			if (tstamp > 86400)
+				Format(FRemainingTime, sizeof(FRemainingTime), "%d %s, %d %s, %d %s, %d %s", days, SingularOrMultiple(days)?"Days":"Day", hours, SingularOrMultiple(hours)?"Hours":"Hour", minutes, SingularOrMultiple(minutes)?"Minutes":"Minute", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+			else if (tstamp > 3600)
+				Format(FRemainingTime, sizeof(FRemainingTime), "%d %s, %d %s, %d %s", hours, SingularOrMultiple(hours)?"Hours":"Hour", minutes, SingularOrMultiple(minutes)?"Minutes":"Minute", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+			else if (tstamp > 60)
+				Format(FRemainingTime, sizeof(FRemainingTime), "%d %s, %d %s", minutes, SingularOrMultiple(minutes)?"Minutes":"Minute", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+			else
+				Format(FRemainingTime, sizeof(FRemainingTime), "%d %s", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+			
+			CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x04%N\x07%s is restricted for another: \x04%s", color_tag, color_warning, target, color_warning, FRemainingTime);
+			
+			return Plugin_Handled;
+		}
+		else
+		{
+			CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x04%N\x07%s's cookies haven't loaded yet.", color_tag, color_warning, target, color_warning);
+			return Plugin_Handled;
+		}
+	}
+	
+	if (G_bRestricted[client])
+	{
+		CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "status restricted");
+		
+		return Plugin_Handled;
+	}
+	
 	if (AreClientCookiesCached(client))
 	{
-		if (G_bRestricted[client])
+		if (G_iRestrictedLength[client] >= 1)
 		{
+			if (G_iRestrictedLength[client] != 1 && G_iRestrictedLength[client] != 0 && G_iRestrictedLength[client] <= GetTime())
+			{
+				G_iRestrictedLength[client] = 0;
+				SetClientCookie(client, G_hCookie_RestrictedLength, "0");
+				
+				CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "status unrestricted");
+				return Plugin_Handled;
+			}
+			
+			if (G_iRestrictedLength[client] == 1)
+			{
+				CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t \x04(permanent)", color_tag, color_warning, "status restricted");
+				
+				return Plugin_Handled;
+			}
+			else if (G_iRestrictedLength[client] > 1)
+			{
+				decl String:RemainingTime[128];
+				decl String:FRemainingTime[128];
+				GetClientCookie(client, G_hCookie_RestrictedLength, RemainingTime, sizeof(RemainingTime));
+				new tstamp = (StringToInt(RemainingTime) - GetTime());
+				
+				new days = (tstamp / 86400);
+				new hours = ((tstamp / 3600) % 24);
+				new minutes = ((tstamp / 60) % 60);
+				new seconds = (tstamp % 60);
+				
+				if (tstamp > 86400)
+					Format(FRemainingTime, sizeof(FRemainingTime), "%d %s, %d %s, %d %s, %d %s", days, SingularOrMultiple(days)?"Days":"Day", hours, SingularOrMultiple(hours)?"Hours":"Hour", minutes, SingularOrMultiple(minutes)?"Minutes":"Minute", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+				else if (tstamp > 3600)
+					Format(FRemainingTime, sizeof(FRemainingTime), "%d %s, %d %s, %d %s", hours, SingularOrMultiple(hours)?"Hours":"Hour", minutes, SingularOrMultiple(minutes)?"Minutes":"Minute", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+				else if (tstamp > 60)
+					Format(FRemainingTime, sizeof(FRemainingTime), "%d %s, %d %s", minutes, SingularOrMultiple(minutes)?"Minutes":"Minute", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+				else
+					Format(FRemainingTime, sizeof(FRemainingTime), "%d %s", seconds, SingularOrMultiple(seconds)?"Seconds":"Second");
+				
+				CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t \x04(%s)", color_tag, color_warning, "status restricted", FRemainingTime);
+				
+				return Plugin_Handled;
+			}
+			
 			CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "status restricted");
 		}
 		else
@@ -733,7 +915,7 @@ public Action:Command_Status(client, args)
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Ban a client
 //----------------------------------------------------------------------------------------------------
 public Action:Command_Restrict(client, args)
 {
@@ -748,19 +930,48 @@ public Action:Command_Restrict(client, args)
 	
 	new target = -1;
 	if ((target = FindTarget(client, target_argument, true)) == -1)
+	{
 		return Plugin_Handled;
+	}
+	
+	if (GetCmdArgs() > 1)
+	{
+		decl String:length[64];
+		decl String:Flength[64];
+		GetCmdArg(2, length, sizeof(length));
+		
+		Format(Flength, sizeof(Flength), "%d", GetTime() + (StringToInt(length) * 60));
+		
+		if (StringToInt(length) == 0)
+		{
+			G_iRestrictedLength[target] = 1;
+			SetClientCookie(target, G_hCookie_RestrictedLength, "1");
+			//SetClientCookie(client, G_hCookie_Restricted, "1");
+		}
+		else if (StringToInt(length) > 0)
+		{
+			G_iRestrictedLength[target] = StringToInt(Flength);
+			SetClientCookie(target, G_hCookie_RestrictedLength, Flength);
+			//SetClientCookie(client, G_hCookie_Restricted, "1");
+		}
+		
+		CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
+		LogAction(client, -1, "\"%L\" restricted \"%L\" for %i minutes", client, target, StringToInt(length));
+		
+		return Plugin_Handled;
+	}
 	
 	G_bRestricted[target] = true;
-	SetClientCookie(target, G_hCookie_Restricted, "1");
+	//SetClientCookie(target, G_hCookie_Restricted, "1");
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
-	LogAction(client, -1, "%L restricted %L", client, target);
+	LogAction(client, -1, "\"%L\" restricted \"%L\"", client, target);
 	
 	return Plugin_Handled;
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Unban a client
 //----------------------------------------------------------------------------------------------------
 public Action:Command_Unrestrict(client, args)
 {
@@ -775,19 +986,23 @@ public Action:Command_Unrestrict(client, args)
 	
 	new target = -1;
 	if ((target = FindTarget(client, target_argument, true)) == -1)
+	{
 		return Plugin_Handled;
+	}
 	
 	G_bRestricted[target] = false;
-	SetClientCookie(target, G_hCookie_Restricted, "0");
+	G_iRestrictedLength[target] = 0;
+	//SetClientCookie(target, G_hCookie_Restricted, "0");
+	SetClientCookie(target, G_hCookie_RestrictedLength, "0");
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%sunrestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
-	LogAction(client, -1, "%L unrestricted %L", client, target);
+	LogAction(client, -1, "\"%L\" unrestricted \"%L\"", client, target);
 	
 	return Plugin_Handled;
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Transfer a special weapon from a client to another
 //----------------------------------------------------------------------------------------------------
 public Action:Command_Transfer(client, args)
 {
@@ -850,13 +1065,13 @@ public Action:Command_Transfer(client, args)
 	}
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, target, color_warning, color_name, reciever);
-	LogAction(client, -1, "%L transfered all items from %L to %L", client, target, reciever);
+	LogAction(client, -1, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, reciever);
 	
 	return Plugin_Handled;
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Load color settings
 //----------------------------------------------------------------------------------------------------
 stock LoadColors()
 {
@@ -902,7 +1117,7 @@ stock LoadColors()
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose:
+// Purpose: Load configurations
 //----------------------------------------------------------------------------------------------------
 stock LoadConfig()
 {
@@ -923,6 +1138,7 @@ stock LoadConfig()
 	{
 		G_bConfigLoaded = true;
 		entArraySize = 0;
+		triggerSize = 0;
 		
 		do
 		{
@@ -976,6 +1192,15 @@ stock LoadConfig()
 				KvGetString(hKeyValues, "cooldown", buffer_temp, sizeof(buffer_temp));
 				entArray[entArraySize][ent_cooldown] = StringToInt(buffer_temp);
 				
+				KvGetString(hKeyValues, "trigger", buffer_temp, sizeof(buffer_temp));
+				
+				new tindex = StringToInt(buffer_temp);
+				if(tindex)
+				{
+					triggerArray[triggerSize] = tindex;
+					triggerSize++;
+				}
+				
 				entArraySize++;
 			}
 		}
@@ -989,4 +1214,127 @@ stock LoadConfig()
 	}
 	
 	CloseHandle(hKeyValues);
+}
+
+public Action:Command_ReloadConfig(client,args) 	
+{ 			
+	for (new index = 0; index < entArraySize; index++) 			
+	{ 			
+		Format(entArray[index][ent_name],         32, ""); 			
+		Format(entArray[index][ent_shortname],    32, ""); 			
+		Format(entArray[index][ent_color],        32, ""); 			
+		Format(entArray[index][ent_buttonclass],  32, ""); 			
+		Format(entArray[index][ent_filtername],   32, ""); 			
+		entArray[index][ent_hasfiltername]  = false; 			
+		entArray[index][ent_blockpickup]    = false; 			
+		entArray[index][ent_allowtransfer]  = false; 			
+		entArray[index][ent_forcedrop]      = false; 			
+		entArray[index][ent_chat]           = false; 			
+		entArray[index][ent_hud]            = false; 			
+		entArray[index][ent_hammerid]       = -1; 			
+		entArray[index][ent_weaponid]       = -1; 			
+		entArray[index][ent_buttonid]       = -1; 			
+		entArray[index][ent_ownerid]        = -1; 			
+		entArray[index][ent_mode]           = 0; 			
+		entArray[index][ent_uses]           = 0; 			
+		entArray[index][ent_maxuses]        = 0; 			
+		entArray[index][ent_cooldown]       = 0; 			
+		entArray[index][ent_cooldowntime]   = -1; 			
+	} 			
+	
+	LoadColors(); 			
+	LoadConfig(); 			
+	
+	return Plugin_Handled; 			
+} 
+
+public OnEntityCreated(entity, const String:classname[])
+{
+    if (triggerSize > 0 && StrContains(classname, "trigger_", false) != -1 && IsValidEntity(entity))
+	{
+		SDKHook(entity, SDKHook_Spawn, OnEntitySpawned);
+	}
+}
+
+public OnEntitySpawned(entity)
+{
+	decl String:classname[32];
+	if(Entity_GetClassName(entity, classname, 32))
+	{
+		if (IsValidEntity(entity) && StrContains(classname, "trigger_", false) != -1)
+		{
+			new hid = Entity_GetHammerID(entity);
+			for (new index = 0; index < triggerSize; index++)
+			{
+				if(hid == triggerArray[index])
+				{
+					SDKHook(entity, SDKHook_Touch, OnTrigger);
+					SDKHook(entity, SDKHook_EndTouch, OnTrigger);
+					SDKHook(entity, SDKHook_StartTouch, OnTrigger);
+				}
+			}
+		}
+	}
+}
+
+public Action:Command_Cooldown(client, args)
+{
+	if (args < 2)
+	{
+		ReplyToCommand(client, "[SM] Usage: sm_setcooldown <hammerid> <cooldown>");
+		return Plugin_Handled;        
+	}        
+	
+	new String:hid[32],String:cooldown[10]
+	
+	GetCmdArg(1, hid, sizeof(hid));
+	GetCmdArg(2, cooldown, sizeof(cooldown));
+	
+	new hammerid = StringToInt(hid);
+	
+	for (new index = 0; index < entArraySize; index++)
+	{
+		if (entArray[index][ent_hammerid] == hammerid)
+		{
+			entArray[index][ent_cooldown] = StringToInt(cooldown);
+		}
+	}
+	
+	return Plugin_Handled;
+}
+
+public Action:OnTrigger(entity, other)
+{
+    if (MaxClients >= other && 0 < other) {
+        if (IsClientConnected(other)) {
+			if (G_bRestricted[other]) {
+				return Plugin_Handled;
+			}
+			
+			if (G_iRestrictedLength[other] != 1 && G_iRestrictedLength[other] != 0 && G_iRestrictedLength[other] <= GetTime())
+			{
+				G_iRestrictedLength[other] = 0;
+				SetClientCookie(other, G_hCookie_RestrictedLength, "0");
+	
+				return Plugin_Continue;
+			}
+			
+			if (G_iRestrictedLength[other] > GetTime() || G_iRestrictedLength[other] == 1)
+			{
+				return Plugin_Handled;
+			}
+        }
+    }
+	
+    return Plugin_Continue;
+}
+
+bool:SingularOrMultiple(int num)
+{
+	if (num > 1 || num == 0)
+	{
+		return true;
+	}
+	
+	return false;
 }
