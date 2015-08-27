@@ -21,3 +21,17 @@ stock Entity_GetHammerID(entity)
 {
 	return GetEntProp(entity, Prop_Data, "m_iHammerID");
 }
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: SMLib
+//----------------------------------------------------------------------------------------------------
+stock Entity_GetClassName(entity, String:buffer[], size)
+{
+	GetEntPropString(entity, Prop_Data, "m_iClassname", buffer, size);
+	
+	if (buffer[0] == '\0') {
+		return false;
+	}
+	
+	return true;
+}
