@@ -10,6 +10,7 @@ This version of entWatch adds:
  - Trigger support
  - Extended Comms style ebans
  - A non working reload config command :>
+ - !status can be used by admins (!status NAME) to check a players current restriction status.
 
 ## Setup
 
