@@ -9,10 +9,12 @@
 #include <sdkhooks>
 #include <sdktools>
 #include <clientprefs>
+#include <adminmenu>
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.3.0"
+#define PLUGIN_VERSION "3.5.0"
+#undef REQUIRE_PLUGIN
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Entity data
@@ -65,10 +67,15 @@ new String:color_warning[16]     = "F16767";
 new Handle:G_hCookie_Display     = INVALID_HANDLE;
 new Handle:G_hCookie_Restricted  = INVALID_HANDLE;
 new Handle:G_hCookie_RestrictedLength = INVALID_HANDLE;
+new Handle:G_hCookie_RestrictedIssued = INVALID_HANDLE;
+new Handle:G_hCookie_RestrictedBy	  = INVALID_HANDLE;
 
 new bool:G_bDisplay[MAXPLAYERS + 1]     = false;
 new bool:G_bRestricted[MAXPLAYERS + 1]  = false;
+new String:G_sRestrictedBy[MAXPLAYERS + 1][64];
 new G_iRestrictedLength[MAXPLAYERS + 1];
+new G_iRestrictedIssued[MAXPLAYERS + 1];
+new G_iAdminMenuTarget[MAXPLAYERS + 1];
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin settings
@@ -77,6 +84,9 @@ new Handle:G_hCvar_DisplayEnabled    = INVALID_HANDLE;
 new Handle:G_hCvar_DisplayCooldowns  = INVALID_HANDLE;
 new Handle:G_hCvar_ModeTeamOnly      = INVALID_HANDLE;
 new Handle:G_hCvar_ConfigColor       = INVALID_HANDLE;
+new Handle:G_hAdminMenu				 = INVALID_HANDLE;
+new Handle:G_hOnBanForward			 = INVALID_HANDLE;
+new Handle:G_hOnUnbanForward		 = INVALID_HANDLE;
 
 new bool:G_bRoundTransition  = false;
 new bool:G_bConfigLoaded     = false;
@@ -90,8 +100,18 @@ public Plugin:myinfo =
 	author       = "Prometheum & zaCade. Edits: George & Obus",
 	description  = "Notify players about entity interactions.",
 	version      = PLUGIN_VERSION,
-	url          = "https://github.com/zaCade/entWatch"
+	url          = "https://github.com/Obuss/entWatch" // Original here: "https://github.com/zaCade/entWatch"
 };
+
+public APLRes:AskPluginLoad2(Handle:hThis, bool:bLate, String:sError[], err_max)
+{
+	CreateNative("entWatch_IsClientBanned", Native_IsClientBanned);
+	CreateNative("entWatch_BanClient", Native_BanClient);
+	
+	RegPluginLibrary("entWatch");
+	
+	return APLRes_Success;
+} 
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin initialization
@@ -108,11 +128,21 @@ public OnPluginStart()
 	G_hCookie_Display     = RegClientCookie("entwatch_display", "", CookieAccess_Private);
 	G_hCookie_Restricted  = RegClientCookie("entwatch_restricted", "", CookieAccess_Private);
 	G_hCookie_RestrictedLength = RegClientCookie("entwatch_restrictedlength", "", CookieAccess_Private);
+	G_hCookie_RestrictedIssued = RegClientCookie("entwatch_restrictedissued", "", CookieAccess_Private);
+	G_hCookie_RestrictedBy     = RegClientCookie("entwatch_restrictedby", "", CookieAccess_Private);
+	
+	new Handle:hTopMenu;
+	
+	if (LibraryExists("adminmenu") && ((hTopMenu = GetAdminTopMenu()) != INVALID_HANDLE))
+	{
+		OnAdminMenuReady(hTopMenu);
+	}
 	
 	RegConsoleCmd("sm_hud", Command_ToggleHUD);
 	RegConsoleCmd("sm_status", Command_Status);
 	
 	RegAdminCmd("sm_eban", Command_Restrict, ADMFLAG_BAN);
+	RegAdminCmd("sm_ebanlist", Command_EBanlist, ADMFLAG_BAN);
 	RegAdminCmd("sm_eunban", Command_Unrestrict, ADMFLAG_BAN);
 	RegAdminCmd("sm_etransfer", Command_Transfer, ADMFLAG_BAN);
 	RegAdminCmd("sm_setcooldown", Command_Cooldown, ADMFLAG_BAN); 
@@ -129,6 +159,486 @@ public OnPluginStart()
 	LoadTranslations("common.phrases");
 	
 	AutoExecConfig(true, "plugin.entWatch");
+	
+	G_hOnBanForward = CreateGlobalForward("entWatch_OnClientBanned", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	G_hOnUnbanForward = CreateGlobalForward("entWatch_OnClientUnbanned", ET_Ignore, Param_Cell, Param_Cell);
+}
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: Safeguard against adminmenu unloading
+//----------------------------------------------------------------------------------------------------
+public OnLibraryRemoved(const String:sName[])
+{
+	if (StrEqual(sName, "adminmenu"))
+		G_hAdminMenu = INVALID_HANDLE;
+}
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: Add our entries to the main admin menu
+//----------------------------------------------------------------------------------------------------
+public OnAdminMenuReady(Handle:hAdminMenu)
+{
+	if (hAdminMenu == G_hAdminMenu) 
+	{
+		return;
+	}
+
+	G_hAdminMenu = hAdminMenu;
+	
+	new TopMenuObject:hMenuObj = AddToTopMenu(G_hAdminMenu, "entWatch_commands", TopMenuObject_Category, AdminMenu_Commands_Handler, INVALID_TOPMENUOBJECT);
+	
+	if (hMenuObj == INVALID_TOPMENUOBJECT)
+	{
+		return;
+	}
+	
+	AddToTopMenu(G_hAdminMenu, "entWatch_banlist", TopMenuObject_Item, Handler_EBanList, hMenuObj, "sm_ebanlist", ADMFLAG_BAN);
+	AddToTopMenu(G_hAdminMenu, "entWatch_ban", TopMenuObject_Item, Handler_EBan, hMenuObj, "sm_eban", ADMFLAG_BAN);
+	AddToTopMenu(G_hAdminMenu, "entWatch_unban", TopMenuObject_Item, Handler_EUnban, hMenuObj, "sm_eunban", ADMFLAG_BAN);
+}
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: Menu Stuff
+//----------------------------------------------------------------------------------------------------
+public AdminMenu_Commands_Handler(Handle:hMenu, TopMenuAction:hAction, TopMenuObject:hObjID, iParam1, String:sBuffer[], iMaxlen)
+{
+	if (hAction == TopMenuAction_DisplayOption)
+	{
+		Format(sBuffer, iMaxlen, "%s", "entWatch Commands", iParam1);
+	}
+	else if (hAction == TopMenuAction_DisplayTitle)
+	{
+		Format(sBuffer, iMaxlen, "%s", "entWatch Commands:", iParam1);
+	}
+}
+
+public Handler_EBanList(Handle:hMenu, TopMenuAction:hAction, TopMenuObject:hObjID, iParam1, String:sBuffer[], iMaxlen)
+{
+	if (hAction == TopMenuAction_DisplayOption)
+	{
+		Format(sBuffer, iMaxlen, "%s", "List Banned Clients", iParam1);
+	}
+	else if (hAction == TopMenuAction_SelectOption)
+	{
+		Menu_List(iParam1);
+	}
+}
+
+public Handler_EBan(Handle:hMenu, TopMenuAction:hAction, TopMenuObject:hObjID, iParam1, String:sBuffer[], iMaxlen)
+{
+	if (hAction == TopMenuAction_DisplayOption)
+	{
+		Format(sBuffer, iMaxlen, "%s", "Ban a Client", iParam1);
+	}
+	else if (hAction == TopMenuAction_SelectOption)
+	{
+		Menu_EBan(iParam1);
+	}
+}
+
+public Handler_EUnban(Handle:hMenu, TopMenuAction:hAction, TopMenuObject:hObjID, iParam1, String:sBuffer[], iMaxlen)
+{
+	if (hAction == TopMenuAction_DisplayOption)
+	{
+		Format(sBuffer, iMaxlen, "%s", "Unban a Client", iParam1);
+	}
+	else if (hAction == TopMenuAction_SelectOption)
+	{
+		Menu_EUnban(iParam1);
+	}
+}
+
+Menu_List(client)
+{
+	new iBannedClients;
+	
+	new Handle:hListMenu = CreateMenu(MenuHandler_Menu_List);
+	SetMenuTitle(hListMenu, "[entWatch] Banned Clients:");
+	SetMenuExitBackButton(hListMenu, true);
+	
+	for (new i = 1; i < MaxClients + 1; i++)
+	{
+		if (IsClientInGame(i) && AreClientCookiesCached(i))
+		{
+			decl String:sBanLen[32];
+			GetClientCookie(i, G_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
+			new iBanLen = StringToInt(sBanLen);
+			
+			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1 || G_bRestricted[i])
+			{
+				new iUserID = GetClientUserId(i);
+				decl String:sUserID[32];
+				decl String:sBuff[64];
+				Format(sBuff, sizeof(sBuff), "%N (#%i)", i, iUserID);
+				Format(sUserID, sizeof(sUserID), "%d", iUserID);
+				
+				AddMenuItem(hListMenu, sUserID, sBuff);
+				iBannedClients++;
+			}
+		}
+	}
+	
+	if (!iBannedClients)
+		AddMenuItem(hListMenu, "", "No Banned Clients.", ITEMDRAW_DISABLED);
+		
+	DisplayMenu(hListMenu, client, MENU_TIME_FOREVER);
+}
+
+Menu_EBan(client)
+{
+	new Handle:hEBanMenu = CreateMenu(MenuHandler_Menu_EBan);
+	SetMenuTitle(hEBanMenu, "[entWatch] Ban a Client:");
+	SetMenuExitBackButton(hEBanMenu, true);
+	AddTargetsToMenu2(hEBanMenu, client, COMMAND_FILTER_NO_BOTS|COMMAND_FILTER_CONNECTED);
+	
+	DisplayMenu(hEBanMenu, client, MENU_TIME_FOREVER);
+}
+
+Menu_EUnban(client)
+{
+	new iBannedClients;
+	
+	new Handle:hEUnbanMenu = CreateMenu(MenuHandler_Menu_EUnban);
+	SetMenuTitle(hEUnbanMenu, "[entWatch] Unban a Client:");
+	SetMenuExitBackButton(hEUnbanMenu, true);
+	
+	for (new i = 1; i < MaxClients + 1; i++)
+	{
+		if (IsClientInGame(i) && AreClientCookiesCached(i))
+		{
+			decl String:sBanLen[32];
+			GetClientCookie(i, G_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
+			new iBanLen = StringToInt(sBanLen);
+			
+			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1 || G_bRestricted[i])
+			{
+				new iUserID = GetClientUserId(i);
+				decl String:sUserID[32];
+				decl String:sBuff[64];
+				Format(sBuff, sizeof(sBuff), "%N (#%i)", i, iUserID);
+				Format(sUserID, sizeof(sUserID), "%d", iUserID);
+				
+				AddMenuItem(hEUnbanMenu, sUserID, sBuff);
+				iBannedClients++;
+			}
+		}
+	}
+	
+	if (!iBannedClients)
+		AddMenuItem(hEUnbanMenu, "", "No Banned Clients.", ITEMDRAW_DISABLED);
+		
+	DisplayMenu(hEUnbanMenu, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_Menu_List(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch(hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+		case MenuAction_Cancel: 
+		{
+			if (iParam2 == MenuCancel_ExitBack && G_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+		}
+		case MenuAction_Select:
+		{
+			decl String:sOption[32];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new target = GetClientOfUserId(StringToInt(sOption));
+			
+			if (target == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
+				
+				if (G_hAdminMenu != INVALID_HANDLE)
+					DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+				else
+					CloseHandle(hMenu);
+			}
+			else
+			{
+				Menu_ListTarget(iParam1, target);
+			}
+		}
+	}
+}
+
+public MenuHandler_Menu_EBan(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch(hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+		case MenuAction_Cancel: 
+		{
+			if (iParam2 == MenuCancel_ExitBack && G_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+		}
+		case MenuAction_Select:
+		{
+			decl String:sOption[32];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new target = GetClientOfUserId(StringToInt(sOption));
+			
+			if (target == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
+				
+				if (G_hAdminMenu != INVALID_HANDLE)
+					DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+				else
+					CloseHandle(hMenu);
+			}
+			else
+			{
+				Menu_EBanTime(iParam1, target);
+			}
+		}
+	}
+}
+
+public MenuHandler_Menu_EUnban(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch(hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+		case MenuAction_Cancel: 
+		{
+			if (iParam2 == MenuCancel_ExitBack && G_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+		}
+		case MenuAction_Select:
+		{
+			decl String:sOption[32];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new target = GetClientOfUserId(StringToInt(sOption));
+			
+			if (target == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
+				
+				if (G_hAdminMenu != INVALID_HANDLE)
+					DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+				else
+					CloseHandle(hMenu);
+			}
+			else
+			{
+				G_bRestricted[target] = false;
+				G_iRestrictedLength[target] = 0;
+				SetClientCookie(target, G_hCookie_RestrictedLength, "0");
+				
+				CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%sunrestricted \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, target);
+				LogAction(iParam1, -1, "\"%L\" unrestricted \"%L\"", iParam1, target);
+				Call_StartForward(G_hOnUnbanForward);
+				Call_PushCell(iParam1);
+				Call_PushCell(target);
+				Call_Finish();
+			}
+		}
+	}
+}
+
+Menu_EBanTime(client, target)
+{
+	new Handle:hEBanMenuTime = CreateMenu(MenuHandler_Menu_EBanTime);
+	SetMenuTitle(hEBanMenuTime, "[entWatch] Ban Time for %N:", target);
+	SetMenuExitBackButton(hEBanMenuTime, true);
+	
+	G_iAdminMenuTarget[client] = target;
+	AddMenuItem(hEBanMenuTime, "0", "Temporary");
+	AddMenuItem(hEBanMenuTime, "10", "10 Minutes");
+	AddMenuItem(hEBanMenuTime, "60", "1 Hour");
+	AddMenuItem(hEBanMenuTime, "1440", "1 Day");
+	AddMenuItem(hEBanMenuTime, "10080", "1 Week");
+	AddMenuItem(hEBanMenuTime, "40320", "1 Month");
+	AddMenuItem(hEBanMenuTime, "1", "Permanent");
+	
+	DisplayMenu(hEBanMenuTime, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_Menu_EBanTime(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch(hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+		case MenuAction_Cancel: 
+		{
+			if (iParam2 == MenuCancel_ExitBack)
+				Menu_EBan(iParam1);
+		}
+		case MenuAction_Select:
+		{
+			decl String:sOption[64];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new target = G_iAdminMenuTarget[iParam1];
+			
+			if (target == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
+				Menu_EBan(iParam1);
+			}
+			else
+			{
+				if (StrEqual(sOption, "0"))
+				{
+					new String:sAdminSID[64];
+					G_bRestricted[target] = true;
+					G_iRestrictedIssued[target] = GetTime();
+					GetClientAuthId(iParam1, AuthId_Steam2, sAdminSID, sizeof(sAdminSID));
+					Format(G_sRestrictedBy[target], sizeof(G_sRestrictedBy[]), "%s", sAdminSID);
+					
+					CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, target);
+					LogAction(iParam1, -1, "\"%L\" restricted \"%L\"", iParam1, target);
+					Call_StartForward(G_hOnBanForward);
+					Call_PushCell(iParam1);
+					Call_PushCell(0);
+					Call_PushCell(target);
+					Call_Finish();
+				}
+				else if (StrEqual(sOption, "1"))
+				{
+					new String:sAdminSID[64];
+					new String:sIssueTime[64];
+					GetClientAuthId(iParam1, AuthId_Steam2, sAdminSID, sizeof(sAdminSID));
+					Format(sIssueTime, sizeof(sIssueTime), "%d", GetTime());
+					
+					G_iRestrictedLength[target] = 1;
+					G_iRestrictedIssued[target] = GetTime();
+					Format(G_sRestrictedBy[target], sizeof(G_sRestrictedBy[]), "%s", sAdminSID);
+					SetClientCookie(target, G_hCookie_RestrictedLength, "1");
+					SetClientCookie(target, G_hCookie_RestrictedBy, sAdminSID);
+					SetClientCookie(target, G_hCookie_RestrictedIssued, sIssueTime);
+					
+					CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, target);
+					LogAction(iParam1, -1, "\"%L\" restricted \"%L\" permanently", iParam1, target, StringToInt(sOption));
+					Call_StartForward(G_hOnBanForward);
+					Call_PushCell(iParam1);
+					Call_PushCell(StringToInt(sOption));
+					Call_PushCell(target);
+					Call_Finish();
+				}
+				else
+				{
+					new String:sAdminSID[64];
+					new String:sIssueTime[64];
+					new String:sBanLen[64];
+					GetClientAuthId(iParam1, AuthId_Steam2, sAdminSID, sizeof(sAdminSID));
+					Format(sIssueTime, sizeof(sIssueTime), "%d", GetTime());
+					Format(sBanLen, sizeof(sBanLen), "%d", GetTime() + (StringToInt(sOption) * 60));
+					
+					G_iRestrictedLength[target] = GetTime() + (StringToInt(sOption) * 60);
+					G_iRestrictedIssued[target] = GetTime();
+					Format(G_sRestrictedBy[target], sizeof(G_sRestrictedBy[]), "%s", sAdminSID);
+					SetClientCookie(target, G_hCookie_RestrictedLength, sBanLen);
+					SetClientCookie(target, G_hCookie_RestrictedBy, sAdminSID);
+					SetClientCookie(target, G_hCookie_RestrictedIssued, sIssueTime);
+					
+					CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, target);
+					LogAction(iParam1, -1, "\"%L\" restricted \"%L\" for %i minutes", iParam1, target, StringToInt(sOption));
+					Call_StartForward(G_hOnBanForward);
+					Call_PushCell(iParam1);
+					Call_PushCell(StringToInt(sOption));
+					Call_PushCell(target);
+					Call_Finish();
+				}
+			}
+		}
+	}
+}
+
+Menu_ListTarget(client, target)
+{
+	new Handle:hListTargetMenu = CreateMenu(MenuHandler_Menu_ListTarget);
+	SetMenuTitle(hListTargetMenu, "[entWatch] Banned Client: %N", target);
+	SetMenuExitBackButton(hListTargetMenu, true);
+	
+	new String:sBanExpiryDate[64];
+	new String:sBanIssuedDate[64];
+	new String:sBanDuration[64];
+	new String:sBannedBy[64];
+	new String:sUserID[32];
+	new iBanExpiryDate = G_iRestrictedLength[target];
+	new iBanIssuedDate = G_iRestrictedIssued[target];
+	new iBanDuration = (iBanExpiryDate - iBanIssuedDate) / 60;
+	new iUserID = GetClientUserId(target);
+	
+	FormatTime(sBanExpiryDate, sizeof(sBanExpiryDate), NULL_STRING, iBanExpiryDate);
+	FormatTime(sBanIssuedDate, sizeof(sBanIssuedDate), NULL_STRING, iBanIssuedDate);
+	Format(sUserID, sizeof(sUserID), "%d", iUserID);
+	
+	if (!G_bRestricted[target])
+	{
+		if (iBanExpiryDate == 1)
+		{
+			Format(sBanDuration, sizeof(sBanDuration), "Duration: Permanent");
+			Format(sBanExpiryDate, sizeof(sBanExpiryDate), "Expires: Never");
+		}
+		else
+		{
+			Format(sBanDuration, sizeof(sBanDuration), "Duration: %d minutes", iBanDuration);
+			Format(sBanExpiryDate, sizeof(sBanExpiryDate), "Expires: %s", sBanExpiryDate);
+		}
+	}
+	else
+	{
+		Format(sBanDuration, sizeof(sBanDuration), "Duration: Temporary");
+		Format(sBanExpiryDate, sizeof(sBanExpiryDate), "Expires: On Map Change");
+	}
+	
+	Format(sBanIssuedDate, sizeof(sBanIssuedDate), "Issued on: %s", !(iBanIssuedDate == 0)?sBanIssuedDate:"Unknown");
+	Format(sBannedBy, sizeof(sBannedBy), "Admin SID: %s", G_sRestrictedBy[target][0]?G_sRestrictedBy[target]:"Unknown");
+	
+	AddMenuItem(hListTargetMenu, "", sBannedBy, ITEMDRAW_DISABLED);
+	AddMenuItem(hListTargetMenu, "", sBanIssuedDate, ITEMDRAW_DISABLED);
+	AddMenuItem(hListTargetMenu, "", sBanExpiryDate, ITEMDRAW_DISABLED);
+	AddMenuItem(hListTargetMenu, "", sBanDuration, ITEMDRAW_DISABLED);
+	AddMenuItem(hListTargetMenu, "", "", ITEMDRAW_SPACER);
+	AddMenuItem(hListTargetMenu, sUserID, "Unban");
+	
+	DisplayMenu(hListTargetMenu, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_Menu_ListTarget(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch(hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+		case MenuAction_Cancel: 
+		{
+			if (iParam2 == MenuCancel_ExitBack)
+				Menu_List(iParam1);
+		}
+		case MenuAction_Select:
+		{
+			decl String:sOption[32];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new target = GetClientOfUserId(StringToInt(sOption));
+			
+			if (target == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
+				Menu_List(iParam1);
+			}
+			else
+			{
+				G_bRestricted[target] = false;
+				G_iRestrictedLength[target] = 0;
+				SetClientCookie(target, G_hCookie_RestrictedLength, "0");
+				
+				CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%sunrestricted \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, target);
+				LogAction(iParam1, -1, "\"%L\" unrestricted \"%L\"", iParam1, target);
+				Call_StartForward(G_hOnUnbanForward);
+				Call_PushCell(iParam1);
+				Call_PushCell(target);
+				Call_Finish();
+			}
+		}
+	}
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -226,6 +736,12 @@ public OnClientCookiesCached(client)
 	{
 		G_iRestrictedLength[client] = StringToInt(buffer_cookie);
 	}
+	
+	GetClientCookie(client, G_hCookie_RestrictedIssued, buffer_cookie, sizeof(buffer_cookie));
+	G_iRestrictedIssued[client] = StringToInt(buffer_cookie);
+	
+	GetClientCookie(client, G_hCookie_RestrictedBy, buffer_cookie, sizeof(buffer_cookie));
+	Format(G_sRestrictedBy[client], sizeof(G_sRestrictedBy[]), "%s", buffer_cookie);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -926,7 +1442,9 @@ public Action:Command_Restrict(client, args)
 	}
 	
 	new String:target_argument[64];
+	new String:sAdminSID[64];
 	GetCmdArg(1, target_argument, sizeof(target_argument));
+	GetClientAuthId(client, AuthId_Steam2, sAdminSID, sizeof(sAdminSID));
 	
 	new target = -1;
 	if ((target = FindTarget(client, target_argument, true)) == -1)
@@ -938,34 +1456,107 @@ public Action:Command_Restrict(client, args)
 	{
 		decl String:length[64];
 		decl String:Flength[64];
+		new String:sIssueTime[64];
 		GetCmdArg(2, length, sizeof(length));
 		
 		Format(Flength, sizeof(Flength), "%d", GetTime() + (StringToInt(length) * 60));
+		Format(sIssueTime, sizeof(sIssueTime), "%d", GetTime());
 		
 		if (StringToInt(length) == 0)
 		{
 			G_iRestrictedLength[target] = 1;
+			G_iRestrictedIssued[target] = GetTime();
+			Format(G_sRestrictedBy[target], sizeof(G_sRestrictedBy[]), "%s", sAdminSID);
 			SetClientCookie(target, G_hCookie_RestrictedLength, "1");
+			SetClientCookie(target, G_hCookie_RestrictedBy, sAdminSID);
+			SetClientCookie(target, G_hCookie_RestrictedIssued, sIssueTime);
 			//SetClientCookie(client, G_hCookie_Restricted, "1");
+			
+			CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
+			LogAction(client, -1, "\"%L\" restricted \"%L\" permanently", client, target, StringToInt(length));
+			Call_StartForward(G_hOnBanForward);
+			Call_PushCell(client);
+			Call_PushCell(1);
+			Call_PushCell(target);
+			Call_Finish();
+			
+			return Plugin_Handled;
 		}
 		else if (StringToInt(length) > 0)
 		{
 			G_iRestrictedLength[target] = StringToInt(Flength);
+			G_iRestrictedIssued[target] = GetTime();
+			Format(G_sRestrictedBy[target], sizeof(G_sRestrictedBy[]), "%s", sAdminSID);
 			SetClientCookie(target, G_hCookie_RestrictedLength, Flength);
+			SetClientCookie(target, G_hCookie_RestrictedBy, sAdminSID);
+			SetClientCookie(target, G_hCookie_RestrictedIssued, sIssueTime);
 			//SetClientCookie(client, G_hCookie_Restricted, "1");
 		}
 		
 		CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
 		LogAction(client, -1, "\"%L\" restricted \"%L\" for %i minutes", client, target, StringToInt(length));
+		Call_StartForward(G_hOnBanForward);
+		Call_PushCell(client);
+		Call_PushCell(StringToInt(length));
+		Call_PushCell(target);
+		Call_Finish();
 		
 		return Plugin_Handled;
 	}
 	
 	G_bRestricted[target] = true;
+	G_iRestrictedIssued[target] = GetTime();
+	Format(G_sRestrictedBy[target], sizeof(G_sRestrictedBy[]), "%s", sAdminSID);
 	//SetClientCookie(target, G_hCookie_Restricted, "1");
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
 	LogAction(client, -1, "\"%L\" restricted \"%L\"", client, target);
+	Call_StartForward(G_hOnBanForward);
+	Call_PushCell(client);
+	Call_PushCell(0);
+	Call_PushCell(target);
+	Call_Finish();
+	
+	return Plugin_Handled;
+}
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: Lists the clients that are currently on the server and banned
+//----------------------------------------------------------------------------------------------------
+public Action:Command_EBanlist(client, args)
+{
+	decl String:sBuff[4096];
+	new bool:bFirst = true;
+	Format(sBuff, sizeof(sBuff), "No players found.");
+	
+	for (new i = 1; i < MaxClients + 1; i++)
+	{
+		if (IsClientInGame(i) && AreClientCookiesCached(i))
+		{
+			decl String:sBanLen[32];
+			GetClientCookie(i, G_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
+			new iBanLen = StringToInt(sBanLen);
+			
+			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1)
+			{
+				if (bFirst)
+				{
+					bFirst = false;
+					Format(sBuff, sizeof(sBuff), "");
+				}
+				else
+				{
+					Format(sBuff, sizeof(sBuff), "%s, ", sBuff);
+				}
+				
+				new iUserID = GetClientUserId(i);
+				Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
+			}
+		}
+	}
+	
+	CReplyToCommand(client, "\x07%s[entWatch]\x07%s Currently e-banned: \x07%s%s", color_tag, color_warning, color_name, sBuff);
+	Format(sBuff, sizeof(sBuff), "");
 	
 	return Plugin_Handled;
 }
@@ -997,6 +1588,10 @@ public Action:Command_Unrestrict(client, args)
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%sunrestricted \x07%s%N", color_tag, color_name, client, color_warning, color_name, target);
 	LogAction(client, -1, "\"%L\" unrestricted \"%L\"", client, target);
+	Call_StartForward(G_hOnUnbanForward);
+	Call_PushCell(client);
+	Call_PushCell(target);
+	Call_Finish();
 	
 	return Plugin_Handled;
 }
@@ -1346,4 +1941,71 @@ bool:SingularOrMultiple(int num)
 	}
 	
 	return false;
+}
+
+
+public Native_IsClientBanned(Handle:hPlugin, iArgC)
+{
+	new client = GetNativeCell(1);
+	
+	if (client < 1 || client > MaxClients || !IsClientInGame(client) || !AreClientCookiesCached(client))
+	{
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid client/client is not in game or client cookies are not yet loaded");
+		return false;
+	}
+	
+	new String:sBuff[64];
+	GetClientCookie(client, G_hCookie_RestrictedLength, sBuff, sizeof(sBuff));
+	new iBanLen = StringToInt(sBuff);
+	
+	if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1)
+	{
+		SetNativeCellRef(2, iBanLen);
+		return true;
+	}
+	
+	return true;
+}
+
+public Native_BanClient(Handle:hPlugin, iArgC)
+{
+	new client = GetNativeCell(1);
+	new bool:bIsTemporary = GetNativeCell(2);
+	new iBanLen = GetTime() + (GetNativeCell(3) * 60);
+	
+	if (client < 1 || client > MaxClients || !IsClientInGame(client) || !AreClientCookiesCached(client))
+	{
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid client/client is not in game or client cookies are not yet loaded");
+		return false;
+	}
+	
+	if (bIsTemporary)
+	{
+		G_bRestricted[client] = true;
+		Call_StartForward(G_hOnBanForward);
+		Call_PushCell(0);
+		Call_PushCell(0);
+		Call_PushCell(client);
+		Call_Finish();
+		return true;
+	}
+	
+	if (iBanLen <= GetTime())
+	{
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid ban length given");
+		return false;
+	}
+	
+	new String:sBanLen[64];
+	Format(sBanLen, sizeof(sBanLen), "%d", iBanLen);
+	
+	SetClientCookie(client, G_hCookie_RestrictedLength, sBanLen);
+	G_iRestrictedLength[client] = iBanLen;
+	Call_StartForward(G_hOnBanForward);
+	Call_PushCell(0);
+	Call_PushCell(iBanLen);
+	Call_PushCell(client);
+	Call_Finish();
+	
+	return true;
 }

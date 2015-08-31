@@ -1,3 +1,51 @@
+#if defined _entWatch_include
+  #endinput
+#endif
+#define _entWatch_include
+
+/**
+ * Checks if a client is currently banned, if an integer variable is referenced the time of unban will be assigned to it.
+ * 
+ * @param client		Client index to check for ban
+ * @param iTimeStamp	Pass an integer variable by reference and it will contain the UNIX timestamp when the player will be unbanned
+ * @return				True if user is banned, false otherwise
+ * 
+ * On error/errors:		Invalid client index/client is not in game or client cookies are not yet loaded
+ */
+native bool:entWatch_IsClientBanned(client, &iTimeStamp);
+
+/**
+ * Bans a client from using special items.
+ * 
+ * @param client		Client index to ban
+ * @param IsTemporary	If it is intended to only ban the user temporarily pass true here, otherwise pass false and give a length in iLength
+ * @param iLength		Length of ban (in minutes)
+ * @return				True on success, false otherwsie
+ * 
+ * On error/errors:		Invalid client index/client is not in game or client cookies are not yet loaded
+ */
+native bool:entWatch_BanClient(client, bool:bIsTemporary=false, iLength=0);
+
+/**
+ * Called when a client is e-banned by any means
+ * 
+ * @param admin			Admin index that issued the ban
+ * @param iLength		Length of the ban in UNIX time
+ * @param client		Client index that was banned
+ * 
+ * @return				None
+ */
+forward entWatch_OnClientBanned(admin, iLenght, client);
+
+/**
+ * Called when a client is e-unbanned by any means
+ * 
+ * @param admin			Admin index that removed the ban
+ * @param client		Client index that was unbanned
+ * @return				None
+ */
+forward entWatch_OnClientUnbanned(admin, client);
+
 //----------------------------------------------------------------------------------------------------
 // Purpose: SMLib
 //----------------------------------------------------------------------------------------------------
@@ -35,3 +83,22 @@ stock Entity_GetClassName(entity, String:buffer[], size)
 	
 	return true;
 }
+
+public SharedPlugin:__pl_entWatch =
+{
+	name = "entWatch",
+	file = "entWatch.smx",
+#if defined REQUIRE_PLUGIN
+	required = 1
+#else
+	required = 0
+#endif
+};
+
+#if !defined REQUIRE_PLUGIN
+public __pl_entWatch_SetNTVOptional()
+{
+	MarkNativeAsOptional("entWatch_IsClientBanned");
+	MarkNativeAsOptional("entWatch_BanClient");
+}
+#endif

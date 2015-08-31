@@ -11,6 +11,8 @@ This version of entWatch adds:
  - Extended Comms style ebans
  - A non working reload config command :>
  - !status can be used by admins (!status NAME) to check a players current restriction status.
+ - An entry under the sourcemod admin menu
+ - New Natives and Forwards for devs
 
 ## Setup
 
