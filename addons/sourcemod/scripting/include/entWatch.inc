@@ -18,13 +18,23 @@ native bool:entWatch_IsClientBanned(client, &iTimeStamp);
  * Bans a client from using special items.
  * 
  * @param client		Client index to ban
- * @param IsTemporary	If it is intended to only ban the user temporarily pass true here, otherwise pass false and give a length in iLength
- * @param iLength		Length of ban (in minutes)
+ * @param IsTemporary	If the ban should be temporary pass true here
+ * @param iLength		Length of ban in minutes, pass 0 here for a permanent ban
  * @return				True on success, false otherwsie
  * 
  * On error/errors:		Invalid client index/client is not in game or client cookies are not yet loaded
  */
 native bool:entWatch_BanClient(client, bool:bIsTemporary=false, iLength=0);
+
+/**
+ * Unbans a previously ebanned Client.
+ * 
+ * @param client		Client index to unban
+ * @return				True on success, false otherwsie
+ * 
+ * On error/errors:		Invalid client index/client is not in game or client cookies are not yet loaded
+ */
+native bool:entWatch_UnbanClient(client);
 
 /**
  * Called when a client is e-banned by any means
