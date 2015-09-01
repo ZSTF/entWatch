@@ -24,32 +24,45 @@ You need to follow a few simple instructions to install entWatch:
 
 ## Supported Maps
 
-```bash
-$ ze_biohazard_manor_v4a_004.cfg
-$ ze_christmas_infection_v2_3.cfg
-$ ze_crashbandicoot_v1fix.cfg
-$ ze_cyberderp_v1_4.cfg
-$ ze_death_star_escape_v4_3.cfg
-$ ze_fapescape_v1_2.cfg
-$ ze_ffvii_mako_reactor_v5_3.cfg
-$ ze_ffxii_paramina_rift_v1_1.cfg
-$ ze_ffxii_westersand_v7_2.cfg
-$ ze_industrial_dejavu_v3_3_1.cfg
-$ ze_italy_town_v3.cfg
-$ ze_lila_panic_escape_v3_1.cfg
-$ ze_lotr_minas_tirith_v3_3.cfgo
-$ ze_lotr_minas_tirith_v3_5.cfg
-$ ze_lotr_mines_of_moria_v6_3.cfg
-$ ze_lotr_mount_doom_v3.cfg
-$ ze_mountain_escape_v5_12a.cfg
-$ ze_paper_escaper_v6_6c2.cfg
-$ ze_paranoid_rezurrection_v11_9.cfg
-$ ze_pirates_port_royal_v3_3.cfg
-$ ze_portal_story_v3_2.cfg
-$ ze_predator_ultimate_v3.cfg
-$ ze_shroomforest_v3.cfg
-$ ze_tesv_skyrim_v4fix.cfg
-$ ze_ut2004_convoy_v2_1.cfg
-```
+* ze_avp_finalbest1
+* ze_avp_v2si20
+* ze_biohazard2_rpd_v4e_004
+* ze_biohazard_manor_v4a_004
+* ze_christmas_infection_v2_3
+* ze_crashbandicoot_v1fix
+* ze_cyberderp_v1_4
+* ze_death_star_escape_v4_3
+* ze_fapescape_v1_2
+* ze_ffvii_mako_reactor_v5_3
+* ze_ffvii_mako_russianversion18
+* ze_ffxii_paramina_rift_v1_3
+* ze_ffxii_westersand_v7_2
+* ze_gods_wrath_v3_8b
+* ze_harry_potter_v1_3 (override)
+* ze_industrial_dejavu_v3_3_1
+* ze_infected_tramway_v3_3
+* ze_italy_town_v3
+* ze_jurassic_park_story_v1
+* ze_legoland_crackheads_v2
+* ze_lila_panic_escape_v3_1
+* ze_lotr_minas_tirith_v3_5
+* ze_lotr_mines_of_moria_v6_3
+* ze_lotr_mount_doom_v3
+* ze_minecraft_adventure_v1_2c
+* ze_mountain_escape_v5_12a
+* ze_paper_escaper_v6_6c2
+* ze_paranoid_rezurrection_v11_9
+* ze_pirates_port_royal_v3_6
+* ze_portal_story_v3_2
+* ze_potc_v3_4fix
+* ze_predator_ultimate_v3
+* ze_rtcw_ominous_rumors_v1
+* ze_shroomforest_v3
+* ze_stalker_ultimate_v2_3
+* ze_sunlight_v2_0
+* ze_tesv_skyrim_v4fix
+* ze_timesplitters_v1_2
+* ze_toaster_v1_2
+* ze_ut2004_convoy_v2_2_1
 
 If you don't see your map listed here feel free to submit your own config or ask us nicely to build you one!
