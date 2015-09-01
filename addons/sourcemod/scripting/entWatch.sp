@@ -108,6 +108,7 @@ public APLRes:AskPluginLoad2(Handle:hThis, bool:bLate, String:sError[], err_max)
 	CreateNative("entWatch_IsClientBanned", Native_IsClientBanned);
 	CreateNative("entWatch_BanClient", Native_BanClient);
 	CreateNative("entWatch_UnbanClient", Native_UnbanClient);
+	CreateNative("entWatch_IsSpecialItem", Native_IsSpecialItem);
 	
 	RegPluginLibrary("entWatch");
 	
@@ -1987,4 +1988,28 @@ public Native_UnbanClient(Handle:hPlugin, iArgC)
 	EUnbanClient(client, 0);
 	
 	return true;
+}
+
+public Native_IsSpecialItem(Handle:hPlugin, iArgC)
+{
+	if (!G_bConfigLoaded)
+	{
+		return false;
+	}
+	
+	new entity = GetNativeCell(1);
+	if (entity < MaxClients || !IsValidEdict(entity) || !IsValidEntity(entity))
+	{
+		return false;
+	}
+
+	for (new index = 0; index < entArraySize; index++)
+	{
+		if (entArray[index][ent_buttonid] == entity)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
