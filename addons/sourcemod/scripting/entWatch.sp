@@ -1612,7 +1612,7 @@ public Action:Command_Transfer(client, args)
 	}
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, target, color_warning, color_name, reciever);
-	LogAction(client, -1, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, reciever);
+	LogAction(client, target, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, reciever);
 	
 	return Plugin_Handled;
 }
