@@ -90,6 +90,7 @@ new Handle:G_hOnUnbanForward		 = INVALID_HANDLE;
 
 new bool:G_bRoundTransition  = false;
 new bool:G_bConfigLoaded     = false;
+new bool:g_bLateLoad         = false;
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin information
@@ -112,6 +113,8 @@ public APLRes:AskPluginLoad2(Handle:hThis, bool:bLate, String:sError[], err_max)
 	
 	RegPluginLibrary("entWatch");
 	
+	g_bLateLoad = true;
+
 	return APLRes_Success;
 } 
 
@@ -164,6 +167,19 @@ public OnPluginStart()
 	
 	G_hOnBanForward = CreateGlobalForward("entWatch_OnClientBanned", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	G_hOnUnbanForward = CreateGlobalForward("entWatch_OnClientUnbanned", ET_Ignore, Param_Cell, Param_Cell);
+
+	if (g_bLateLoad)
+	{
+		for (new i = 1; i <= MaxClients; i++)
+		{
+			if (!IsClientInGame(i) || IsFakeClient(i))
+			{
+				continue;
+			}
+			
+			OnClientPutInServer(i);
+		}
+	}
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -664,35 +680,7 @@ public MenuHandler_Menu_ListTarget(Handle:hMenu, MenuAction:hAction, iParam1, iP
 //----------------------------------------------------------------------------------------------------
 public OnMapStart()
 {
-	for (new index = 0; index < entArraySize; index++)
-	{
-		Format(entArray[index][ent_name],         32, "");
-		Format(entArray[index][ent_shortname],    32, "");
-		Format(entArray[index][ent_color],        32, "");
-		Format(entArray[index][ent_buttonclass],  32, "");
-		Format(entArray[index][ent_filtername],   32, "");
-		entArray[index][ent_hasfiltername]  = false;
-		entArray[index][ent_blockpickup]    = false;
-		entArray[index][ent_allowtransfer]  = false;
-		entArray[index][ent_forcedrop]      = false;
-		entArray[index][ent_chat]           = false;
-		entArray[index][ent_hud]            = false;
-		entArray[index][ent_hammerid]       = -1;
-		entArray[index][ent_weaponid]       = -1;
-		entArray[index][ent_buttonid]       = -1;
-		entArray[index][ent_ownerid]        = -1;
-		entArray[index][ent_mode]           = 0;
-		entArray[index][ent_uses]           = 0;
-		entArray[index][ent_maxuses]        = 0;
-		entArray[index][ent_cooldown]       = 0;
-		entArray[index][ent_cooldowntime]   = -1;
-	}
-	
-	for (new index = 0; index < triggerSize; index++)
-	{
-		triggerArray[index] = 0;
-	}
-	
+	CleanData();
 	LoadColors();
 	LoadConfig();
 }
@@ -1625,9 +1613,45 @@ public Action:Command_Transfer(client, args)
 	}
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, target, color_warning, color_name, reciever);
-	LogAction(client, -1, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, reciever);
+	LogAction(client, target, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, reciever);
 	
 	return Plugin_Handled;
+}
+
+
+CleanData()
+{
+	for (new index = 0; index < entArraySize; index++)
+	{
+		Format(entArray[index][ent_name],         32, "");
+		Format(entArray[index][ent_shortname],    32, "");
+		Format(entArray[index][ent_color],        32, "");
+		Format(entArray[index][ent_buttonclass],  32, "");
+		Format(entArray[index][ent_filtername],   32, "");
+		entArray[index][ent_hasfiltername]  = false;
+		entArray[index][ent_blockpickup]    = false;
+		entArray[index][ent_allowtransfer]  = false;
+		entArray[index][ent_forcedrop]      = false;
+		entArray[index][ent_chat]           = false;
+		entArray[index][ent_hud]            = false;
+		entArray[index][ent_hammerid]       = -1;
+		entArray[index][ent_weaponid]       = -1;
+		entArray[index][ent_buttonid]       = -1;
+		entArray[index][ent_ownerid]        = -1;
+		entArray[index][ent_mode]           = 0;
+		entArray[index][ent_uses]           = 0;
+		entArray[index][ent_maxuses]        = 0;
+		entArray[index][ent_cooldown]       = 0;
+		entArray[index][ent_cooldowntime]   = -1;
+	}
+	
+	for (new index = 0; index < triggerSize; index++)
+	{
+		triggerArray[index] = 0;
+	}
+
+	entArraySize = 0;
+	triggerSize = 0;
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -1691,16 +1715,16 @@ stock LoadConfig()
 	GetCurrentMap(buffer_map, sizeof(buffer_map));
 	Format(buffer_path, sizeof(buffer_path), "cfg/sourcemod/entwatch/maps/%s.cfg", buffer_map);
 	Format(buffer_path_override, sizeof(buffer_path_override), "cfg/sourcemod/entwatch/maps/%s_override.cfg", buffer_map);
-	if(FileExists(buffer_path_override))
+	if (FileExists(buffer_path_override))
 	{
 		FileToKeyValues(hKeyValues, buffer_path_override);
+		LogMessage("Loading %s", buffer_path_override);
 	}
 	else
 	{
 		FileToKeyValues(hKeyValues, buffer_path);
+		LogMessage("Loading %s", buffer_path);
 	}
-	
-	LogMessage("Loading %s", buffer_path);
 	
 	KvRewind(hKeyValues);
 	if (KvGotoFirstSubKey(hKeyValues))
@@ -1786,31 +1810,8 @@ stock LoadConfig()
 }
 
 public Action:Command_ReloadConfig(client,args) 	
-{ 			
-	for (new index = 0; index < entArraySize; index++) 			
-	{ 			
-		Format(entArray[index][ent_name],         32, "");
-		Format(entArray[index][ent_shortname],    32, "");
-		Format(entArray[index][ent_color],        32, "");
-		Format(entArray[index][ent_buttonclass],  32, "");
-		Format(entArray[index][ent_filtername],   32, "");
-		entArray[index][ent_hasfiltername]  = false;
-		entArray[index][ent_blockpickup]    = false;
-		entArray[index][ent_allowtransfer]  = false;
-		entArray[index][ent_forcedrop]      = false;
-		entArray[index][ent_chat]           = false;
-		entArray[index][ent_hud]            = false;
-		entArray[index][ent_hammerid]       = -1;
-		entArray[index][ent_weaponid]       = -1;
-		entArray[index][ent_buttonid]       = -1;
-		entArray[index][ent_ownerid]        = -1;
-		entArray[index][ent_mode]           = 0;
-		entArray[index][ent_uses]           = 0;
-		entArray[index][ent_maxuses]        = 0;
-		entArray[index][ent_cooldown]       = 0;
-		entArray[index][ent_cooldowntime]   = -1;
-	} 			
-	
+{
+	CleanData();
 	LoadColors();
 	LoadConfig();
 	
