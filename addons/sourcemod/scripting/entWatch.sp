@@ -13,7 +13,7 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.5.3"
+#define PLUGIN_VERSION "3.6.0"
 #undef REQUIRE_PLUGIN
 
 //----------------------------------------------------------------------------------------------------
@@ -64,32 +64,32 @@ new String:color_warning[16]     = "F16767";
 //----------------------------------------------------------------------------------------------------
 // Purpose: Client settings
 //----------------------------------------------------------------------------------------------------
-new Handle:G_hCookie_Display     = INVALID_HANDLE;
-new Handle:G_hCookie_Restricted  = INVALID_HANDLE;
-new Handle:G_hCookie_RestrictedLength = INVALID_HANDLE;
-new Handle:G_hCookie_RestrictedIssued = INVALID_HANDLE;
-new Handle:G_hCookie_RestrictedBy	  = INVALID_HANDLE;
+new Handle:g_hCookie_Display     = INVALID_HANDLE;
+new Handle:g_hCookie_Restricted  = INVALID_HANDLE;
+new Handle:g_hCookie_RestrictedLength = INVALID_HANDLE;
+new Handle:g_hCookie_RestrictedIssued = INVALID_HANDLE;
+new Handle:g_hCookie_RestrictedBy	  = INVALID_HANDLE;
 
-new bool:G_bDisplay[MAXPLAYERS + 1]     = false;
-new bool:G_bRestricted[MAXPLAYERS + 1]  = false;
-new String:G_sRestrictedBy[MAXPLAYERS + 1][64];
-new G_iRestrictedLength[MAXPLAYERS + 1];
-new G_iRestrictedIssued[MAXPLAYERS + 1];
-new G_iAdminMenuTarget[MAXPLAYERS + 1];
+new bool:g_bDisplay[MAXPLAYERS + 1]     = false;
+new bool:g_bRestricted[MAXPLAYERS + 1]  = false;
+new String:g_sRestrictedBy[MAXPLAYERS + 1][64];
+new g_iRestrictedLength[MAXPLAYERS + 1];
+new g_iRestrictedIssued[MAXPLAYERS + 1];
+new g_iAdminMenuTarget[MAXPLAYERS + 1];
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin settings
 //----------------------------------------------------------------------------------------------------
-new Handle:G_hCvar_DisplayEnabled    = INVALID_HANDLE;
-new Handle:G_hCvar_DisplayCooldowns  = INVALID_HANDLE;
-new Handle:G_hCvar_ModeTeamOnly      = INVALID_HANDLE;
-new Handle:G_hCvar_ConfigColor       = INVALID_HANDLE;
-new Handle:G_hAdminMenu				 = INVALID_HANDLE;
-new Handle:G_hOnBanForward			 = INVALID_HANDLE;
-new Handle:G_hOnUnbanForward		 = INVALID_HANDLE;
+new Handle:g_hCvar_DisplayEnabled    = INVALID_HANDLE;
+new Handle:g_hCvar_DisplayCooldowns  = INVALID_HANDLE;
+new Handle:g_hCvar_ModeTeamOnly      = INVALID_HANDLE;
+new Handle:g_hCvar_ConfigColor       = INVALID_HANDLE;
+new Handle:g_hAdminMenu				 = INVALID_HANDLE;
+new Handle:g_hOnBanForward			 = INVALID_HANDLE;
+new Handle:g_hOnUnbanForward		 = INVALID_HANDLE;
 
-new bool:G_bRoundTransition  = false;
-new bool:G_bConfigLoaded     = false;
+new bool:g_bRoundTransition  = false;
+new bool:g_bConfigLoaded     = false;
 new bool:g_bLateLoad         = false;
 
 //----------------------------------------------------------------------------------------------------
@@ -113,7 +113,7 @@ public APLRes:AskPluginLoad2(Handle:hThis, bool:bLate, String:sError[], err_max)
 	
 	RegPluginLibrary("entWatch");
 	
-	g_bLateLoad = true;
+	g_bLateLoad = bLate;
 
 	return APLRes_Success;
 } 
@@ -125,16 +125,16 @@ public OnPluginStart()
 {
 	CreateConVar("entwatch_version", PLUGIN_VERSION, "Current version of entWatch", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 	
-	G_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	G_hCvar_DisplayCooldowns  = CreateConVar("entwatch_display_cooldowns", "1", "Show/Hide the cooldowns on the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	G_hCvar_ModeTeamOnly      = CreateConVar("entwatch_mode_teamonly", "1", "Enable/Disable team only mode.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	G_hCvar_ConfigColor       = CreateConVar("entwatch_config_color", "color_classic", "The name of the color config.", FCVAR_PLUGIN);
+	g_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	g_hCvar_DisplayCooldowns  = CreateConVar("entwatch_display_cooldowns", "1", "Show/Hide the cooldowns on the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	g_hCvar_ModeTeamOnly      = CreateConVar("entwatch_mode_teamonly", "1", "Enable/Disable team only mode.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	g_hCvar_ConfigColor       = CreateConVar("entwatch_config_color", "color_classic", "The name of the color config.", FCVAR_PLUGIN);
 	
-	G_hCookie_Display     = RegClientCookie("entwatch_display", "", CookieAccess_Private);
-	G_hCookie_Restricted  = RegClientCookie("entwatch_restricted", "", CookieAccess_Private);
-	G_hCookie_RestrictedLength = RegClientCookie("entwatch_restrictedlength", "", CookieAccess_Private);
-	G_hCookie_RestrictedIssued = RegClientCookie("entwatch_restrictedissued", "", CookieAccess_Private);
-	G_hCookie_RestrictedBy     = RegClientCookie("entwatch_restrictedby", "", CookieAccess_Private);
+	g_hCookie_Display     = RegClientCookie("entwatch_display", "", CookieAccess_Private);
+	g_hCookie_Restricted  = RegClientCookie("entwatch_restricted", "", CookieAccess_Private);
+	g_hCookie_RestrictedLength = RegClientCookie("entwatch_restrictedlength", "", CookieAccess_Private);
+	g_hCookie_RestrictedIssued = RegClientCookie("entwatch_restrictedissued", "", CookieAccess_Private);
+	g_hCookie_RestrictedBy     = RegClientCookie("entwatch_restrictedby", "", CookieAccess_Private);
 	
 	new Handle:hTopMenu;
 	
@@ -165,8 +165,8 @@ public OnPluginStart()
 	
 	AutoExecConfig(true, "plugin.entWatch");
 	
-	G_hOnBanForward = CreateGlobalForward("entWatch_OnClientBanned", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
-	G_hOnUnbanForward = CreateGlobalForward("entWatch_OnClientUnbanned", ET_Ignore, Param_Cell, Param_Cell);
+	g_hOnBanForward = CreateGlobalForward("entWatch_OnClientBanned", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
+	g_hOnUnbanForward = CreateGlobalForward("entWatch_OnClientUnbanned", ET_Ignore, Param_Cell, Param_Cell);
 
 	if (g_bLateLoad)
 	{
@@ -178,6 +178,7 @@ public OnPluginStart()
 			}
 			
 			OnClientPutInServer(i);
+			OnClientCookiesCached(i);
 		}
 	}
 }
@@ -192,37 +193,37 @@ EBanClient(client, const String:sLength[], admin)
 	
 	if (admin == 0)
 	{
-		Format(G_sRestrictedBy[client], sizeof(G_sRestrictedBy[]), "Console");
-		SetClientCookie(client, G_hCookie_RestrictedBy, "Console");
+		Format(g_sRestrictedBy[client], sizeof(g_sRestrictedBy[]), "Console");
+		SetClientCookie(client, g_hCookie_RestrictedBy, "Console");
 	}
 	else
 	{
 		new String:sAdminSID[64];
 		GetClientAuthId(admin, AuthId_Steam2, sAdminSID, sizeof(sAdminSID));
-		Format(G_sRestrictedBy[client], sizeof(G_sRestrictedBy[]), "%s (%N)", sAdminSID, admin);
+		Format(g_sRestrictedBy[client], sizeof(g_sRestrictedBy[]), "%s (%N)", sAdminSID, admin);
 		
-		SetClientCookie(client, G_hCookie_RestrictedBy, sAdminSID);
+		SetClientCookie(client, g_hCookie_RestrictedBy, sAdminSID);
 	}
 	
 	if (iBanLen == 0)
 	{
 		iBanDuration = 0;
-		G_bRestricted[client] = true;
+		g_bRestricted[client] = true;
 		
 		LogAction(admin, client, "\"%L\" restricted \"%L\"", admin, client);
 	}
 	else if (iBanLen == 1)
 	{
 		iBanDuration = -1;
-		G_iRestrictedLength[client] = 1;
-		SetClientCookie(client, G_hCookie_RestrictedLength, "1");
+		g_iRestrictedLength[client] = 1;
+		SetClientCookie(client, g_hCookie_RestrictedLength, "1");
 		
 		LogAction(admin, client, "\"%L\" restricted \"%L\" permanently", admin, client);
 	}
 	else
 	{
-		G_iRestrictedLength[client] = iBanLen;
-		SetClientCookie(client, G_hCookie_RestrictedLength, sLength);
+		g_iRestrictedLength[client] = iBanLen;
+		SetClientCookie(client, g_hCookie_RestrictedLength, sLength);
 		
 		LogAction(admin, client, "\"%L\" restricted \"%L\" for %d minutes", admin, client, iBanDuration);
 	}
@@ -230,12 +231,12 @@ EBanClient(client, const String:sLength[], admin)
 	new String:sIssueTime[64];
 	Format(sIssueTime, sizeof(sIssueTime), "%d", GetTime());
 	
-	G_iRestrictedIssued[client] = GetTime();
-	SetClientCookie(client, G_hCookie_RestrictedIssued, sIssueTime);
+	g_iRestrictedIssued[client] = GetTime();
+	SetClientCookie(client, g_hCookie_RestrictedIssued, sIssueTime);
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%srestricted \x07%s%N", color_tag, color_name, admin, color_warning, color_name, client);
 	
-	Call_StartForward(G_hOnBanForward);
+	Call_StartForward(g_hOnBanForward);
 	Call_PushCell(admin);
 	Call_PushCell(iBanDuration);
 	Call_PushCell(client);
@@ -247,18 +248,18 @@ EBanClient(client, const String:sLength[], admin)
 //----------------------------------------------------------------------------------------------------
 EUnbanClient(client, admin)
 {
-	G_bRestricted[client] = false;
-	G_iRestrictedLength[client] = 0;
-	G_iRestrictedIssued[client] = 0;
-	G_sRestrictedBy[client][0] = '\0'
-	SetClientCookie(client, G_hCookie_RestrictedLength, "0");
-	SetClientCookie(client, G_hCookie_RestrictedBy, "");
-	SetClientCookie(client, G_hCookie_RestrictedIssued, "");
+	g_bRestricted[client] = false;
+	g_iRestrictedLength[client] = 0;
+	g_iRestrictedIssued[client] = 0;
+	g_sRestrictedBy[client][0] = '\0'
+	SetClientCookie(client, g_hCookie_RestrictedLength, "0");
+	SetClientCookie(client, g_hCookie_RestrictedBy, "");
+	SetClientCookie(client, g_hCookie_RestrictedIssued, "");
 	
 	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%sunrestricted \x07%s%N", color_tag, color_name, admin, color_warning, color_name, client);
 	LogAction(admin, client, "\"%L\" unrestricted \"%L\"", admin, client);
 	
-	Call_StartForward(G_hOnUnbanForward);
+	Call_StartForward(g_hOnUnbanForward);
 	Call_PushCell(admin);
 	Call_PushCell(client);
 	Call_Finish();
@@ -269,7 +270,7 @@ EUnbanClient(client, admin)
 public OnLibraryRemoved(const String:sName[])
 {
 	if (StrEqual(sName, "adminmenu"))
-		G_hAdminMenu = INVALID_HANDLE;
+		g_hAdminMenu = INVALID_HANDLE;
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -277,23 +278,23 @@ public OnLibraryRemoved(const String:sName[])
 //----------------------------------------------------------------------------------------------------
 public OnAdminMenuReady(Handle:hAdminMenu)
 {
-	if (hAdminMenu == G_hAdminMenu) 
+	if (hAdminMenu == g_hAdminMenu) 
 	{
 		return;
 	}
 
-	G_hAdminMenu = hAdminMenu;
+	g_hAdminMenu = hAdminMenu;
 	
-	new TopMenuObject:hMenuObj = AddToTopMenu(G_hAdminMenu, "entWatch_commands", TopMenuObject_Category, AdminMenu_Commands_Handler, INVALID_TOPMENUOBJECT);
+	new TopMenuObject:hMenuObj = AddToTopMenu(g_hAdminMenu, "entWatch_commands", TopMenuObject_Category, AdminMenu_Commands_Handler, INVALID_TOPMENUOBJECT);
 	
 	if (hMenuObj == INVALID_TOPMENUOBJECT)
 	{
 		return;
 	}
 	
-	AddToTopMenu(G_hAdminMenu, "entWatch_banlist", TopMenuObject_Item, Handler_EBanList, hMenuObj, "sm_ebanlist", ADMFLAG_BAN);
-	AddToTopMenu(G_hAdminMenu, "entWatch_ban", TopMenuObject_Item, Handler_EBan, hMenuObj, "sm_eban", ADMFLAG_BAN);
-	AddToTopMenu(G_hAdminMenu, "entWatch_unban", TopMenuObject_Item, Handler_EUnban, hMenuObj, "sm_eunban", ADMFLAG_BAN);
+	AddToTopMenu(g_hAdminMenu, "entWatch_banlist", TopMenuObject_Item, Handler_EBanList, hMenuObj, "sm_ebanlist", ADMFLAG_BAN);
+	AddToTopMenu(g_hAdminMenu, "entWatch_ban", TopMenuObject_Item, Handler_EBan, hMenuObj, "sm_eban", ADMFLAG_BAN);
+	AddToTopMenu(g_hAdminMenu, "entWatch_unban", TopMenuObject_Item, Handler_EUnban, hMenuObj, "sm_eunban", ADMFLAG_BAN);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -360,10 +361,10 @@ Menu_List(client)
 		if (IsClientInGame(i) && AreClientCookiesCached(i))
 		{
 			decl String:sBanLen[32];
-			GetClientCookie(i, G_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
+			GetClientCookie(i, g_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
 			new iBanLen = StringToInt(sBanLen);
 			
-			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1 || G_bRestricted[i])
+			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1 || g_bRestricted[i])
 			{
 				new iUserID = GetClientUserId(i);
 				decl String:sUserID[32];
@@ -406,10 +407,10 @@ Menu_EUnban(client)
 		if (IsClientInGame(i) && AreClientCookiesCached(i))
 		{
 			decl String:sBanLen[32];
-			GetClientCookie(i, G_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
+			GetClientCookie(i, g_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
 			new iBanLen = StringToInt(sBanLen);
 			
-			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1 || G_bRestricted[i])
+			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1 || g_bRestricted[i])
 			{
 				new iUserID = GetClientUserId(i);
 				decl String:sUserID[32];
@@ -437,8 +438,8 @@ public MenuHandler_Menu_List(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 			CloseHandle(hMenu);
 		case MenuAction_Cancel: 
 		{
-			if (iParam2 == MenuCancel_ExitBack && G_hAdminMenu != INVALID_HANDLE)
-				DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 		}
 		case MenuAction_Select:
 		{
@@ -450,8 +451,8 @@ public MenuHandler_Menu_List(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 			{
 				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
 				
-				if (G_hAdminMenu != INVALID_HANDLE)
-					DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+				if (g_hAdminMenu != INVALID_HANDLE)
+					DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 				else
 					CloseHandle(hMenu);
 			}
@@ -471,8 +472,8 @@ public MenuHandler_Menu_EBan(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 			CloseHandle(hMenu);
 		case MenuAction_Cancel: 
 		{
-			if (iParam2 == MenuCancel_ExitBack && G_hAdminMenu != INVALID_HANDLE)
-				DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 		}
 		case MenuAction_Select:
 		{
@@ -484,8 +485,8 @@ public MenuHandler_Menu_EBan(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 			{
 				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
 				
-				if (G_hAdminMenu != INVALID_HANDLE)
-					DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+				if (g_hAdminMenu != INVALID_HANDLE)
+					DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 				else
 					CloseHandle(hMenu);
 			}
@@ -505,8 +506,8 @@ public MenuHandler_Menu_EUnban(Handle:hMenu, MenuAction:hAction, iParam1, iParam
 			CloseHandle(hMenu);
 		case MenuAction_Cancel: 
 		{
-			if (iParam2 == MenuCancel_ExitBack && G_hAdminMenu != INVALID_HANDLE)
-				DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 		}
 		case MenuAction_Select:
 		{
@@ -518,8 +519,8 @@ public MenuHandler_Menu_EUnban(Handle:hMenu, MenuAction:hAction, iParam1, iParam
 			{
 				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Player no longer available", color_tag, color_warning);
 				
-				if (G_hAdminMenu != INVALID_HANDLE)
-					DisplayTopMenu(G_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+				if (g_hAdminMenu != INVALID_HANDLE)
+					DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 				else
 					CloseHandle(hMenu);
 			}
@@ -537,7 +538,7 @@ Menu_EBanTime(client, target)
 	SetMenuTitle(hEBanMenuTime, "[entWatch] Ban Time for %N:", target);
 	SetMenuExitBackButton(hEBanMenuTime, true);
 	
-	G_iAdminMenuTarget[client] = target;
+	g_iAdminMenuTarget[client] = target;
 	AddMenuItem(hEBanMenuTime, "0", "Temporary");
 	AddMenuItem(hEBanMenuTime, "10", "10 Minutes");
 	AddMenuItem(hEBanMenuTime, "60", "1 Hour");
@@ -564,7 +565,7 @@ public MenuHandler_Menu_EBanTime(Handle:hMenu, MenuAction:hAction, iParam1, iPar
 		{
 			decl String:sOption[64];
 			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
-			new target = G_iAdminMenuTarget[iParam1];
+			new target = g_iAdminMenuTarget[iParam1];
 			
 			if (target == 0)
 			{
@@ -604,8 +605,8 @@ Menu_ListTarget(client, target)
 	new String:sBanDuration[64];
 	new String:sBannedBy[64];
 	new String:sUserID[32];
-	new iBanExpiryDate = G_iRestrictedLength[target];
-	new iBanIssuedDate = G_iRestrictedIssued[target];
+	new iBanExpiryDate = g_iRestrictedLength[target];
+	new iBanIssuedDate = g_iRestrictedIssued[target];
 	new iBanDuration = (iBanExpiryDate - iBanIssuedDate) / 60;
 	new iUserID = GetClientUserId(target);
 	
@@ -613,7 +614,7 @@ Menu_ListTarget(client, target)
 	FormatTime(sBanIssuedDate, sizeof(sBanIssuedDate), NULL_STRING, iBanIssuedDate);
 	Format(sUserID, sizeof(sUserID), "%d", iUserID);
 	
-	if (!G_bRestricted[target])
+	if (!g_bRestricted[target])
 	{
 		if (iBanExpiryDate == 1)
 		{
@@ -633,7 +634,7 @@ Menu_ListTarget(client, target)
 	}
 	
 	Format(sBanIssuedDate, sizeof(sBanIssuedDate), "Issued on: %s", !(iBanIssuedDate == 0)?sBanIssuedDate:"Unknown");
-	Format(sBannedBy, sizeof(sBannedBy), "Admin SID: %s", G_sRestrictedBy[target][0]?G_sRestrictedBy[target]:"Unknown");
+	Format(sBannedBy, sizeof(sBannedBy), "Admin SID: %s", g_sRestrictedBy[target][0]?g_sRestrictedBy[target]:"Unknown");
 	
 	AddMenuItem(hListTargetMenu, "", sBannedBy, ITEMDRAW_DISABLED);
 	AddMenuItem(hListTargetMenu, "", sBanIssuedDate, ITEMDRAW_DISABLED);
@@ -690,12 +691,12 @@ public OnMapStart()
 //----------------------------------------------------------------------------------------------------
 public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	if (G_bConfigLoaded && G_bRoundTransition)
+	if (g_bConfigLoaded && g_bRoundTransition)
 	{
 		CPrintToChatAll("\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "welcome");
 	}
 	
-	G_bRoundTransition = false;
+	g_bRoundTransition = false;
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -703,7 +704,7 @@ public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroad
 //----------------------------------------------------------------------------------------------------
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition)
+	if (g_bConfigLoaded && !g_bRoundTransition)
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -716,7 +717,7 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
 		}
 	}
 	
-	G_bRoundTransition = true;
+	g_bRoundTransition = true;
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -725,29 +726,29 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
 public OnClientCookiesCached(client)
 {
 	new String:buffer_cookie[32];
-	GetClientCookie(client, G_hCookie_Display, buffer_cookie, sizeof(buffer_cookie));
-	G_bDisplay[client] = bool:StringToInt(buffer_cookie);
+	GetClientCookie(client, g_hCookie_Display, buffer_cookie, sizeof(buffer_cookie));
+	g_bDisplay[client] = bool:StringToInt(buffer_cookie);
 	
-	//GetClientCookie(client, G_hCookie_Restricted, buffer_cookie, sizeof(buffer_cookie));
-	//G_bRestricted[client] = bool:StringToInt(buffer_cookie);
+	//GetClientCookie(client, g_hCookie_Restricted, buffer_cookie, sizeof(buffer_cookie));
+	//g_bRestricted[client] = bool:StringToInt(buffer_cookie);
 	
-	GetClientCookie(client, G_hCookie_RestrictedLength, buffer_cookie, sizeof(buffer_cookie));
+	GetClientCookie(client, g_hCookie_RestrictedLength, buffer_cookie, sizeof(buffer_cookie));
 	
 	if (StringToInt(buffer_cookie) != 1 && StringToInt(buffer_cookie) <= GetTime())
 	{
-		G_iRestrictedLength[client] = 0;
-		SetClientCookie(client, G_hCookie_RestrictedLength, "0");
+		g_iRestrictedLength[client] = 0;
+		SetClientCookie(client, g_hCookie_RestrictedLength, "0");
 	}
 	else
 	{
-		G_iRestrictedLength[client] = StringToInt(buffer_cookie);
+		g_iRestrictedLength[client] = StringToInt(buffer_cookie);
 	}
 	
-	GetClientCookie(client, G_hCookie_RestrictedIssued, buffer_cookie, sizeof(buffer_cookie));
-	G_iRestrictedIssued[client] = StringToInt(buffer_cookie);
+	GetClientCookie(client, g_hCookie_RestrictedIssued, buffer_cookie, sizeof(buffer_cookie));
+	g_iRestrictedIssued[client] = StringToInt(buffer_cookie);
 	
-	GetClientCookie(client, G_hCookie_RestrictedBy, buffer_cookie, sizeof(buffer_cookie));
-	Format(G_sRestrictedBy[client], sizeof(G_sRestrictedBy[]), "%s", buffer_cookie);
+	GetClientCookie(client, g_hCookie_RestrictedBy, buffer_cookie, sizeof(buffer_cookie));
+	Format(g_sRestrictedBy[client], sizeof(g_sRestrictedBy[]), "%s", buffer_cookie);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -759,23 +760,23 @@ public OnClientPutInServer(client)
 	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquip);
 	SDKHook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
 	
-	G_bRestricted[client] = false;
+	g_bRestricted[client] = false;
 	
 	if (!AreClientCookiesCached(client))
 	{
-		G_bDisplay[client] = false;
-		//G_bRestricted[client] = false;
-		G_iRestrictedLength[client] = 0;
+		g_bDisplay[client] = false;
+		//g_bRestricted[client] = false;
+		g_iRestrictedLength[client] = 0;
 	}
 	else
 	{
 		decl String:restricted[32];
-		GetClientCookie(client, G_hCookie_Restricted, restricted, sizeof(restricted));
+		GetClientCookie(client, g_hCookie_Restricted, restricted, sizeof(restricted));
 		
 		if (StringToInt(restricted) == 1)
 		{
-			SetClientCookie(client, G_hCookie_RestrictedLength, "1");
-			SetClientCookie(client, G_hCookie_Restricted, "0");
+			SetClientCookie(client, g_hCookie_RestrictedLength, "1");
+			SetClientCookie(client, g_hCookie_Restricted, "0");
 		}
 	}
 }
@@ -785,7 +786,7 @@ public OnClientPutInServer(client)
 //----------------------------------------------------------------------------------------------------
 public OnClientDisconnect(client)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition)
+	if (g_bConfigLoaded && !g_bRoundTransition)
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -806,7 +807,7 @@ public OnClientDisconnect(client)
 					{
 						if (IsClientConnected(ply) && IsClientInGame(ply))
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, client, color_disconnect, color_steamid, buffer_steamid, color_disconnect, color_disconnect, "disconnect", entArray[index][ent_color], entArray[index][ent_name]);
 							}
@@ -821,9 +822,9 @@ public OnClientDisconnect(client)
 	SDKUnhook(client, SDKHook_WeaponEquipPost, OnWeaponEquip);
 	SDKUnhook(client, SDKHook_WeaponCanUse, OnWeaponCanUse);
 	
-	G_bDisplay[client] = false;
-	G_bRestricted[client] = false;
-	G_iRestrictedLength[client] = 0;
+	g_bDisplay[client] = false;
+	g_bRestricted[client] = false;
+	g_iRestrictedLength[client] = 0;
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -833,7 +834,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	
-	if (G_bConfigLoaded && !G_bRoundTransition)
+	if (g_bConfigLoaded && !g_bRoundTransition)
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -854,7 +855,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 					{
 						if (IsClientConnected(ply) && IsClientInGame(ply))
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, client, color_death, color_steamid, buffer_steamid, color_death, color_death, "death", entArray[index][ent_color], entArray[index][ent_name]);
 							}
@@ -871,7 +872,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponEquip(client, weapon)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition && IsValidEdict(weapon))
+	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(weapon))
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -891,7 +892,7 @@ public Action:OnWeaponEquip(client, weapon)
 						{
 							if (IsClientConnected(ply) && IsClientInGame(ply))
 							{
-								if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+								if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 								{
 									CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, client, color_pickup, color_steamid, buffer_steamid, color_pickup, color_pickup, "pickup", entArray[index][ent_color], entArray[index][ent_name]);
 								}
@@ -911,7 +912,7 @@ public Action:OnWeaponEquip(client, weapon)
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponDrop(client, weapon)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition && IsValidEdict(weapon))
+	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(weapon))
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -931,7 +932,7 @@ public Action:OnWeaponDrop(client, weapon)
 						{
 							if (IsClientConnected(ply) && IsClientInGame(ply))
 							{
-								if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+								if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(client) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 								{
 									CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, client, color_drop, color_steamid, buffer_steamid, color_drop, color_drop, "drop", entArray[index][ent_color], entArray[index][ent_name]);
 								}
@@ -951,7 +952,7 @@ public Action:OnWeaponDrop(client, weapon)
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponCanUse(client, weapon)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition && IsValidEdict(weapon))
+	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(weapon))
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -992,23 +993,23 @@ public Action:OnWeaponCanUse(client, weapon)
 						return Plugin_Handled;
 					}
 					
-					if (G_bRestricted[client])
+					if (g_bRestricted[client])
 					{
 						return Plugin_Handled;
 					}
 					
-					if (G_iRestrictedLength[client] != 1 && G_iRestrictedLength[client] != 0 && G_iRestrictedLength[client] <= GetTime())
+					if (g_iRestrictedLength[client] != 1 && g_iRestrictedLength[client] != 0 && g_iRestrictedLength[client] <= GetTime())
 					{
-						//G_bRestricted[client] = false;
-						G_iRestrictedLength[client] = 0;
+						//g_bRestricted[client] = false;
+						g_iRestrictedLength[client] = 0;
 						
-						SetClientCookie(client, G_hCookie_RestrictedLength, "0");
-						//SetClientCookie(client, G_hCookie_Restricted, "0");
+						SetClientCookie(client, g_hCookie_RestrictedLength, "0");
+						//SetClientCookie(client, g_hCookie_Restricted, "0");
 						
 						return Plugin_Continue;
 					}
 					
-					if (G_iRestrictedLength[client] > GetTime() || G_iRestrictedLength[client] == 1)
+					if (g_iRestrictedLength[client] > GetTime() || g_iRestrictedLength[client] == 1)
 					{
 						return Plugin_Handled;
 					}
@@ -1027,7 +1028,7 @@ public Action:OnWeaponCanUse(client, weapon)
 //----------------------------------------------------------------------------------------------------
 public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition && IsValidEdict(button))
+	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(button))
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -1053,7 +1054,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 					{
 						if (IsClientConnected(ply) && IsClientInGame(ply))
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, activator, color_use, color_steamid, buffer_steamid, color_use, color_use, "use", entArray[index][ent_color], entArray[index][ent_name]);
 							}
@@ -1069,7 +1070,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 					{
 						if (IsClientConnected(ply) && IsClientInGame(ply))
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, activator, color_use, color_steamid, buffer_steamid, color_use, color_use, "use", entArray[index][ent_color], entArray[index][ent_name]);
 							}
@@ -1085,7 +1086,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 					{
 						if (IsClientConnected(ply) && IsClientInGame(ply))
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, activator, color_use, color_steamid, buffer_steamid, color_use, color_use, "use", entArray[index][ent_color], entArray[index][ent_name]);
 							}
@@ -1102,7 +1103,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 					{
 						if (IsClientConnected(ply) && IsClientInGame(ply))
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == GetClientTeam(activator) || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								CPrintToChat(ply, "\x07%s[entWatch] \x07%s%N \x07%s(\x07%s%s\x07%s) \x07%s%t \x07%s%s", color_tag, color_name, activator, color_use, color_steamid, buffer_steamid, color_use, color_use, "use", entArray[index][ent_color], entArray[index][ent_name]);
 							}
@@ -1132,9 +1133,9 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 //----------------------------------------------------------------------------------------------------
 public Action:Timer_DisplayHUD(Handle:timer)
 {
-	if (GetConVarBool(G_hCvar_DisplayEnabled))
+	if (GetConVarBool(g_hCvar_DisplayEnabled))
 	{
-		if (G_bConfigLoaded && !G_bRoundTransition)
+		if (g_bConfigLoaded && !g_bRoundTransition)
 		{
 			new String:buffer_teamtext[5][250];
 			
@@ -1144,7 +1145,7 @@ public Action:Timer_DisplayHUD(Handle:timer)
 				{
 					new String:buffer_temp[128];
 					
-					if (GetConVarBool(G_hCvar_DisplayCooldowns))
+					if (GetConVarBool(g_hCvar_DisplayCooldowns))
 					{
 						if (entArray[index][ent_mode] == 2)
 						{
@@ -1218,13 +1219,13 @@ public Action:Timer_DisplayHUD(Handle:timer)
 			{
 				if (IsClientConnected(ply) && IsClientInGame(ply))
 				{
-					if (G_bDisplay[ply])
+					if (g_bDisplay[ply])
 					{
 						new String:buffer_text[250];
 						
 						for (new teamid = 0; teamid < sizeof(buffer_teamtext); teamid++)
 						{
-							if (!GetConVarBool(G_hCvar_ModeTeamOnly) || (GetConVarBool(G_hCvar_ModeTeamOnly) && GetClientTeam(ply) == teamid || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
+							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(ply) == teamid || !IsPlayerAlive(ply) || CheckCommandAccess(ply, "entWatch_chat", ADMFLAG_CHAT)))
 							{
 								if (strlen(buffer_teamtext[teamid]) + strlen(buffer_text) <= sizeof(buffer_text))
 								{
@@ -1249,7 +1250,7 @@ public Action:Timer_DisplayHUD(Handle:timer)
 //----------------------------------------------------------------------------------------------------
 public Action:Timer_Cooldowns(Handle:timer)
 {
-	if (G_bConfigLoaded && !G_bRoundTransition)
+	if (g_bConfigLoaded && !g_bRoundTransition)
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -1268,17 +1269,17 @@ public Action:Command_ToggleHUD(client, args)
 {
 	if (AreClientCookiesCached(client))
 	{
-		if (G_bDisplay[client])
+		if (g_bDisplay[client])
 		{
 			CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "display disabled");
-			SetClientCookie(client, G_hCookie_Display, "0");
-			G_bDisplay[client] = false;
+			SetClientCookie(client, g_hCookie_Display, "0");
+			g_bDisplay[client] = false;
 		}
 		else
 		{
 			CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "display enabled");
-			SetClientCookie(client, G_hCookie_Display, "1");
-			G_bDisplay[client] = true;
+			SetClientCookie(client, g_hCookie_Display, "1");
+			g_bDisplay[client] = true;
 		}
 	}
 	else
@@ -1309,9 +1310,9 @@ public Action:Command_Status(client, args)
 		
 		if (AreClientCookiesCached(target))
 		{
-			GetClientCookie(target, G_hCookie_RestrictedLength, CStatus, sizeof(CStatus));
+			GetClientCookie(target, g_hCookie_RestrictedLength, CStatus, sizeof(CStatus));
 			
-			if (G_bRestricted[target])
+			if (g_bRestricted[target])
 			{
 				CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x07%s%N\x07%s is temporarily restricted.", color_tag, color_warning, color_name, target, color_warning);
 				
@@ -1333,15 +1334,15 @@ public Action:Command_Status(client, args)
 			else if (StringToInt(CStatus) <= GetTime())
 			{
 				CReplyToCommand(client, "\x07%s[entWatch]\x07%s \x07%s%N\x07%s is not restricted.", color_tag, color_warning, color_name, target, color_warning);
-				G_iRestrictedLength[target] = 0;
-				SetClientCookie(target, G_hCookie_RestrictedLength, "0");
+				g_iRestrictedLength[target] = 0;
+				SetClientCookie(target, g_hCookie_RestrictedLength, "0");
 				
 				return Plugin_Handled;
 			}
 			
 			decl String:RemainingTime[128];
 			decl String:FRemainingTime[128];
-			GetClientCookie(target, G_hCookie_RestrictedLength, RemainingTime, sizeof(RemainingTime));
+			GetClientCookie(target, g_hCookie_RestrictedLength, RemainingTime, sizeof(RemainingTime));
 			new tstamp = (StringToInt(RemainingTime) - GetTime());
 			
 			new days = (tstamp / 86400);
@@ -1369,7 +1370,7 @@ public Action:Command_Status(client, args)
 		}
 	}
 	
-	if (G_bRestricted[client])
+	if (g_bRestricted[client])
 	{
 		CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "status restricted");
 		
@@ -1378,28 +1379,28 @@ public Action:Command_Status(client, args)
 	
 	if (AreClientCookiesCached(client))
 	{
-		if (G_iRestrictedLength[client] >= 1)
+		if (g_iRestrictedLength[client] >= 1)
 		{
-			if (G_iRestrictedLength[client] != 1 && G_iRestrictedLength[client] != 0 && G_iRestrictedLength[client] <= GetTime())
+			if (g_iRestrictedLength[client] != 1 && g_iRestrictedLength[client] != 0 && g_iRestrictedLength[client] <= GetTime())
 			{
-				G_iRestrictedLength[client] = 0;
-				SetClientCookie(client, G_hCookie_RestrictedLength, "0");
+				g_iRestrictedLength[client] = 0;
+				SetClientCookie(client, g_hCookie_RestrictedLength, "0");
 				
 				CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t", color_tag, color_warning, "status unrestricted");
 				return Plugin_Handled;
 			}
 			
-			if (G_iRestrictedLength[client] == 1)
+			if (g_iRestrictedLength[client] == 1)
 			{
 				CReplyToCommand(client, "\x07%s[entWatch] \x07%s%t \x04(permanent)", color_tag, color_warning, "status restricted");
 				
 				return Plugin_Handled;
 			}
-			else if (G_iRestrictedLength[client] > 1)
+			else if (g_iRestrictedLength[client] > 1)
 			{
 				decl String:RemainingTime[128];
 				decl String:FRemainingTime[128];
-				GetClientCookie(client, G_hCookie_RestrictedLength, RemainingTime, sizeof(RemainingTime));
+				GetClientCookie(client, g_hCookie_RestrictedLength, RemainingTime, sizeof(RemainingTime));
 				new tstamp = (StringToInt(RemainingTime) - GetTime());
 				
 				new days = (tstamp / 86400);
@@ -1497,7 +1498,7 @@ public Action:Command_EBanlist(client, args)
 		if (IsClientInGame(i) && AreClientCookiesCached(i))
 		{
 			decl String:sBanLen[32];
-			GetClientCookie(i, G_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
+			GetClientCookie(i, g_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
 			new iBanLen = StringToInt(sBanLen);
 			
 			if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1)
@@ -1577,7 +1578,7 @@ public Action:Command_Transfer(client, args)
 	if (GetClientTeam(target) != GetClientTeam(reciever))
 		return Plugin_Handled;
 	
-	if (G_bConfigLoaded && !G_bRoundTransition)
+	if (g_bConfigLoaded && !g_bRoundTransition)
 	{
 		for (new index = 0; index < entArraySize; index++)
 		{
@@ -1664,7 +1665,7 @@ stock LoadColors()
 	new String:buffer_path[PLATFORM_MAX_PATH];
 	new String:buffer_temp[16];
 	
-	GetConVarString(G_hCvar_ConfigColor, buffer_config, sizeof(buffer_config));
+	GetConVarString(g_hCvar_ConfigColor, buffer_config, sizeof(buffer_config));
 	Format(buffer_path, sizeof(buffer_path), "cfg/sourcemod/entwatch/colors/%s.cfg", buffer_config);
 	FileToKeyValues(hKeyValues, buffer_path);
 	
@@ -1729,7 +1730,7 @@ stock LoadConfig()
 	KvRewind(hKeyValues);
 	if (KvGotoFirstSubKey(hKeyValues))
 	{
-		G_bConfigLoaded = true;
+		g_bConfigLoaded = true;
 		entArraySize = 0;
 		triggerSize = 0;
 		
@@ -1801,7 +1802,7 @@ stock LoadConfig()
 	}
 	else
 	{
-		G_bConfigLoaded = false;
+		g_bConfigLoaded = false;
 		
 		LogMessage("Could not load %s", buffer_path);
 	}
@@ -1877,19 +1878,19 @@ public Action:OnTrigger(entity, other)
 {
     if (MaxClients >= other && 0 < other) {
         if (IsClientConnected(other)) {
-			if (G_bRestricted[other]) {
+			if (g_bRestricted[other]) {
 				return Plugin_Handled;
 			}
 			
-			if (G_iRestrictedLength[other] != 1 && G_iRestrictedLength[other] != 0 && G_iRestrictedLength[other] <= GetTime())
+			if (g_iRestrictedLength[other] != 1 && g_iRestrictedLength[other] != 0 && g_iRestrictedLength[other] <= GetTime())
 			{
-				G_iRestrictedLength[other] = 0;
-				SetClientCookie(other, G_hCookie_RestrictedLength, "0");
+				g_iRestrictedLength[other] = 0;
+				SetClientCookie(other, g_hCookie_RestrictedLength, "0");
 	
 				return Plugin_Continue;
 			}
 			
-			if (G_iRestrictedLength[other] > GetTime() || G_iRestrictedLength[other] == 1)
+			if (g_iRestrictedLength[other] > GetTime() || g_iRestrictedLength[other] == 1)
 			{
 				return Plugin_Handled;
 			}
@@ -1920,7 +1921,7 @@ public Native_IsClientBanned(Handle:hPlugin, iArgC)
 	}
 	
 	new String:sBuff[64];
-	GetClientCookie(client, G_hCookie_RestrictedLength, sBuff, sizeof(sBuff));
+	GetClientCookie(client, g_hCookie_RestrictedLength, sBuff, sizeof(sBuff));
 	new iBanLen = StringToInt(sBuff);
 	
 	if ((iBanLen != 0 && iBanLen >= GetTime()) || iBanLen == 1)
@@ -1993,7 +1994,7 @@ public Native_UnbanClient(Handle:hPlugin, iArgC)
 
 public Native_IsSpecialItem(Handle:hPlugin, iArgC)
 {
-	if (!G_bConfigLoaded)
+	if (!g_bConfigLoaded)
 	{
 		return false;
 	}
