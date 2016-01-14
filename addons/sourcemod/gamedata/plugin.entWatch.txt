@@ -1,0 +1,14 @@
+"Games"
+{
+	"cstrike"
+	{
+		"Offsets"
+		{
+			"OnPickedUp"
+			{
+				"windows"	"300"
+				"linux"		"301"
+			}
+		}
+	}
+}

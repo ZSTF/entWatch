@@ -92,6 +92,8 @@ new bool:g_bRoundTransition  = false;
 new bool:g_bConfigLoaded     = false;
 new bool:g_bLateLoad         = false;
 
+new Handle:g_hOnPickedUp;
+
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin information
 //----------------------------------------------------------------------------------------------------
@@ -179,6 +181,36 @@ public OnPluginStart()
 			OnClientPutInServer(i);
 			OnClientCookiesCached(i);
 		}
+	}
+
+	new Handle:hGameConf = LoadGameConfigFile("plugin.entWatch");
+	if(hGameConf == INVALID_HANDLE)
+	{
+		SetFailState("Couldn't load plugin.entWatch game config!")
+		return;
+	}
+	if(GameConfGetOffset(hGameConf, "OnPickedUp") == -1)
+	{
+		CloseHandle(hGameConf);
+		SetFailState("Couldn't get OnPickedUp offset from game config!");
+		return;
+	}
+
+	StartPrepSDKCall(SDKCall_Entity);
+	if(!PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, "OnPickedUp"))
+	{
+		CloseHandle(hGameConf);
+		SetFailState("PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, \"OnPickedUp\" failed!");
+		return;
+	}
+	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+	g_hOnPickedUp = EndPrepSDKCall();
+
+	CloseHandle(hGameConf);
+	if(g_hOnPickedUp == INVALID_HANDLE)
+	{
+		SetFailState("Couldn't prepare OnPickedUp SDKCall!")
+		return;
 	}
 }
 
@@ -694,12 +726,12 @@ public MenuHandler_Menu_TransferTarget(Handle:hMenu, MenuAction:hAction, iParam1
 						if (entArray[iEntityIndex][ent_chat])
 						{
 							entArray[iEntityIndex][ent_chat] = false;
-							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 							entArray[iEntityIndex][ent_chat] = true;
 						}
 						else
 						{
-							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 						}
 						
 						CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
@@ -1816,12 +1848,12 @@ public Action:Command_Transfer(client, args)
 									if (entArray[index][ent_chat])
 									{
 										entArray[index][ent_chat] = false;
-										EquipPlayerWeapon(receiver, entArray[index][ent_weaponid]);
+										FixedEquipPlayerWeapon(receiver, entArray[index][ent_weaponid]);
 										entArray[index][ent_chat] = true;
 									}
 									else
 									{
-										EquipPlayerWeapon(receiver, entArray[index][ent_weaponid]);
+										FixedEquipPlayerWeapon(receiver, entArray[index][ent_weaponid]);
 									}
 									
 									CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, target, color_warning, color_name, receiver);
@@ -1901,12 +1933,12 @@ public Action:Command_Transfer(client, args)
 						if (entArray[iEntityIndex][ent_chat])
 						{
 							entArray[iEntityIndex][ent_chat] = false;
-							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 							entArray[iEntityIndex][ent_chat] = true;
 						}
 						else
 						{
-							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 						}
 						
 						CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
@@ -1952,12 +1984,12 @@ public Action:Command_Transfer(client, args)
 					if (entArray[iEntityIndex][ent_chat])
 					{
 						entArray[iEntityIndex][ent_chat] = false;
-						EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+						FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 						entArray[iEntityIndex][ent_chat] = true;
 					}
 					else
 					{
-						EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+						FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 					}
 					
 					bFoundWeapon = true;
@@ -1974,12 +2006,12 @@ public Action:Command_Transfer(client, args)
 				if (entArray[iEntityIndex][ent_chat])
 				{
 					entArray[iEntityIndex][ent_chat] = false;
-					EquipPlayerWeapon(receiver, entity);
+					FixedEquipPlayerWeapon(receiver, entity);
 					entArray[iEntityIndex][ent_chat] = true;
 				}
 				else
 				{
-					EquipPlayerWeapon(receiver, entity);
+					FixedEquipPlayerWeapon(receiver, entity);
 				}
 				
 				bFoundWeapon = true;
@@ -2040,12 +2072,12 @@ public EdictMenu_Handler(Handle:hEdictMenu, MenuAction:hAction, iParam1, iParam2
 						if (entArray[iEntityIndex][ent_chat])
 						{
 							entArray[iEntityIndex][ent_chat] = false;
-							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 							entArray[iEntityIndex][ent_chat] = true;
 						}
 						else
 						{
-							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							FixedEquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
 						}
 						
 						CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
@@ -2474,4 +2506,11 @@ public Native_IsSpecialItem(Handle:hPlugin, iArgC)
 	}
 
 	return false;
+}
+
+stock FixedEquipPlayerWeapon(client, weapon)
+{
+	SDKCall(g_hOnPickedUp, weapon, client);
+	EquipPlayerWeapon(client, weapon);
+	OnWeaponEquip(client, weapon);
 }
