@@ -13,7 +13,7 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.6.0"
+#define PLUGIN_VERSION "3.7.0"
 #undef REQUIRE_PLUGIN
 
 //----------------------------------------------------------------------------------------------------
@@ -152,6 +152,7 @@ public OnPluginStart()
 	RegAdminCmd("sm_etransfer", Command_Transfer, ADMFLAG_BAN);
 	RegAdminCmd("sm_setcooldown", Command_Cooldown, ADMFLAG_BAN); 
 	RegAdminCmd("sm_ew_reloadconfig", Command_ReloadConfig, ADMFLAG_CONFIG);
+	RegAdminCmd("sm_ewdebugarray", Command_DebugArray, ADMFLAG_CONFIG);
 	
 	HookEvent("round_start", Event_RoundStart, EventHookMode_Pre);
 	HookEvent("round_end", Event_RoundEnd, EventHookMode_Pre);
@@ -167,15 +168,13 @@ public OnPluginStart()
 	
 	g_hOnBanForward = CreateGlobalForward("entWatch_OnClientBanned", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	g_hOnUnbanForward = CreateGlobalForward("entWatch_OnClientUnbanned", ET_Ignore, Param_Cell, Param_Cell);
-
+	
 	if (g_bLateLoad)
 	{
 		for (new i = 1; i <= MaxClients; i++)
 		{
 			if (!IsClientInGame(i) || IsFakeClient(i))
-			{
 				continue;
-			}
 			
 			OnClientPutInServer(i);
 			OnClientCookiesCached(i);
@@ -294,6 +293,7 @@ public OnAdminMenuReady(Handle:hAdminMenu)
 	
 	AddToTopMenu(g_hAdminMenu, "entWatch_banlist", TopMenuObject_Item, Handler_EBanList, hMenuObj, "sm_ebanlist", ADMFLAG_BAN);
 	AddToTopMenu(g_hAdminMenu, "entWatch_ban", TopMenuObject_Item, Handler_EBan, hMenuObj, "sm_eban", ADMFLAG_BAN);
+	AddToTopMenu(g_hAdminMenu, "entWatch_transfer", TopMenuObject_Item, Handler_Transfer, hMenuObj, "sm_etransfer", ADMFLAG_BAN);
 	AddToTopMenu(g_hAdminMenu, "entWatch_unban", TopMenuObject_Item, Handler_EUnban, hMenuObj, "sm_eunban", ADMFLAG_BAN);
 }
 
@@ -333,6 +333,18 @@ public Handler_EBan(Handle:hMenu, TopMenuAction:hAction, TopMenuObject:hObjID, i
 	else if (hAction == TopMenuAction_SelectOption)
 	{
 		Menu_EBan(iParam1);
+	}
+}
+
+public Handler_Transfer(Handle:hMenu, TopMenuAction:hAction, TopMenuObject:hObjID, iParam1, String:sBuffer[], iMaxlen)
+{
+	if (hAction == TopMenuAction_DisplayOption)
+	{
+		Format(sBuffer, iMaxlen, "%s", "Transfer an item", iParam1);
+	}
+	else if (hAction == TopMenuAction_SelectOption)
+	{
+		Menu_Transfer(iParam1);
 	}
 }
 
@@ -394,6 +406,35 @@ Menu_EBan(client)
 	DisplayMenu(hEBanMenu, client, MENU_TIME_FOREVER);
 }
 
+Menu_Transfer(client)
+{
+	new Handle:hTransferMenu = CreateMenu(MenuHandler_Menu_Transfer);
+	new String:sMenuTemp[64];
+	new String:sIndexTemp[16];
+	new iHeldCount = 0;
+	SetMenuTitle(hTransferMenu, "[entWatch] Transfer an item:");
+	SetMenuExitBackButton(hTransferMenu, true);
+	
+	for (new i = 0; i < entArraySize; i++)
+	{
+		if (entArray[i][ent_allowtransfer])
+		{
+			if (entArray[i][ent_ownerid] != -1)
+			{
+				IntToString(i, sIndexTemp, sizeof(sIndexTemp));
+				Format(sMenuTemp, sizeof(sMenuTemp), "%s | %N (#%i)", entArray[i][ent_name], entArray[i][ent_ownerid], GetClientUserId(entArray[i][ent_ownerid]));
+				AddMenuItem(hTransferMenu, sIndexTemp, sMenuTemp, ITEMDRAW_DEFAULT);
+				iHeldCount++;
+			}
+		}
+	}
+	
+	if (!iHeldCount)
+		AddMenuItem(hTransferMenu, "", "No transferable items currently held.", ITEMDRAW_DISABLED);
+		
+	DisplayMenu(hTransferMenu, client, MENU_TIME_FOREVER);
+}
+
 Menu_EUnban(client)
 {
 	new iBannedClients;
@@ -436,11 +477,13 @@ public MenuHandler_Menu_List(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 	{
 		case MenuAction_End:
 			CloseHandle(hMenu);
+			
 		case MenuAction_Cancel: 
 		{
 			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
 				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 		}
+		
 		case MenuAction_Select:
 		{
 			decl String:sOption[32];
@@ -470,11 +513,13 @@ public MenuHandler_Menu_EBan(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 	{
 		case MenuAction_End:
 			CloseHandle(hMenu);
+			
 		case MenuAction_Cancel: 
 		{
 			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
 				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 		}
+		
 		case MenuAction_Select:
 		{
 			decl String:sOption[32];
@@ -498,17 +543,50 @@ public MenuHandler_Menu_EBan(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 	}
 }
 
+public MenuHandler_Menu_Transfer(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch(hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+			
+		case MenuAction_Cancel:
+		{
+			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
+				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
+		}
+		
+		case MenuAction_Select:
+		{
+			decl String:sOption[32];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new iEntityIndex = StringToInt(sOption);
+			
+			if (entArray[iEntityIndex][ent_ownerid] != -1)
+			{
+				Menu_TransferTarget(iParam1, iEntityIndex);
+			}
+			else
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch]\x07%s Item no longer available.", color_tag, color_warning);
+			}
+		}
+	}
+}
+
 public MenuHandler_Menu_EUnban(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
 {
 	switch(hAction)
 	{
 		case MenuAction_End:
 			CloseHandle(hMenu);
+			
 		case MenuAction_Cancel: 
 		{
 			if (iParam2 == MenuCancel_ExitBack && g_hAdminMenu != INVALID_HANDLE)
 				DisplayTopMenu(g_hAdminMenu, iParam1, TopMenuPosition_LastCategory);
 		}
+		
 		case MenuAction_Select:
 		{
 			decl String:sOption[32];
@@ -527,6 +605,112 @@ public MenuHandler_Menu_EUnban(Handle:hMenu, MenuAction:hAction, iParam1, iParam
 			else
 			{
 				EUnbanClient(target, iParam1);
+			}
+		}
+	}
+}
+
+Menu_TransferTarget(client, iEntityIndex)
+{
+	new Handle:hTransferTarget = CreateMenu(MenuHandler_Menu_TransferTarget);
+	new String:sMenuTemp[64];
+	new String:sIndexTemp[32];
+	SetMenuTitle(hTransferTarget, "[entWatch] Transfer target:");
+	SetMenuExitBackButton(hTransferTarget, true);
+	
+	g_iAdminMenuTarget[client] = iEntityIndex;
+	Format(sIndexTemp, sizeof(sIndexTemp), "%i", GetClientUserId(client));
+	Format(sMenuTemp, sizeof(sMenuTemp), "%N (#%s)", client, sIndexTemp);
+	AddMenuItem(hTransferTarget, sIndexTemp, sMenuTemp, ITEMDRAW_DEFAULT);
+	
+	for (new i = 1; i < MAXPLAYERS; i++)
+	{
+		if (!IsClientInGame(i))
+			continue;
+			
+		if (IsFakeClient(i))
+			continue;
+			
+		if (GetClientTeam(i) != GetClientTeam(entArray[iEntityIndex][ent_ownerid]))
+			continue;
+			
+		if (i == client)
+			continue;
+		
+		Format(sIndexTemp, sizeof(sIndexTemp), "%i", GetClientUserId(i));
+		Format(sMenuTemp, sizeof(sMenuTemp), "%N (#%s)", i, sIndexTemp);
+		AddMenuItem(hTransferTarget, sIndexTemp, sMenuTemp, ITEMDRAW_DEFAULT);
+	}
+	
+	DisplayMenu(hTransferTarget, client, MENU_TIME_FOREVER);
+}
+
+public MenuHandler_Menu_TransferTarget(Handle:hMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch (hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hMenu);
+			
+		case MenuAction_Cancel:
+		{
+			if (iParam2 == MenuCancel_ExitBack)
+				Menu_Transfer(iParam1);
+		}
+		
+		case MenuAction_Select:
+		{
+			decl String:sOption[64];
+			GetMenuItem(hMenu, iParam2, sOption, sizeof(sOption));
+			new iEntityIndex = g_iAdminMenuTarget[iParam1];
+			new receiver = GetClientOfUserId(StringToInt(sOption));
+			
+			if (receiver == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch] \x07%sReceiver is not valid anymore.", color_tag, color_warning);
+				return;
+			}
+			
+			if (entArray[iEntityIndex][ent_allowtransfer])
+			{
+				if (entArray[iEntityIndex][ent_ownerid] != -1)
+				{
+					if (IsValidEdict(entArray[iEntityIndex][ent_weaponid]))
+					{
+						new iCurOwner = entArray[iEntityIndex][ent_ownerid];
+						
+						if (GetClientTeam(receiver) != GetClientTeam(iCurOwner))
+						{
+							CPrintToChat(iParam1, "\x07%s[entWatch] \x07%sThe receivers team differs from the targets team.", color_tag, color_warning);
+							return;
+						}
+						
+						new String:buffer_classname[64];
+						GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
+						
+						SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+						GivePlayerItem(iCurOwner, buffer_classname);
+						
+						if (entArray[iEntityIndex][ent_chat])
+						{
+							entArray[iEntityIndex][ent_chat] = false;
+							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							entArray[iEntityIndex][ent_chat] = true;
+						}
+						else
+						{
+							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+						}
+						
+						CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
+		
+						LogAction(iParam1, iCurOwner, "\"%L\" transfered all items from \"%L\" to \"%L\"", iParam1, iCurOwner, receiver);
+					}
+				}
+				else
+				{
+					CPrintToChat(iParam1, "\x07%s[entWatch] \x07%sItem is not valid anymore.", color_tag, color_warning);
+				}
 			}
 		}
 	}
@@ -556,11 +740,13 @@ public MenuHandler_Menu_EBanTime(Handle:hMenu, MenuAction:hAction, iParam1, iPar
 	{
 		case MenuAction_End:
 			CloseHandle(hMenu);
+			
 		case MenuAction_Cancel: 
 		{
 			if (iParam2 == MenuCancel_ExitBack)
 				Menu_EBan(iParam1);
 		}
+		
 		case MenuAction_Select:
 		{
 			decl String:sOption[64];
@@ -652,11 +838,13 @@ public MenuHandler_Menu_ListTarget(Handle:hMenu, MenuAction:hAction, iParam1, iP
 	{
 		case MenuAction_End:
 			CloseHandle(hMenu);
+			
 		case MenuAction_Cancel: 
 		{
 			if (iParam2 == MenuCancel_ExitBack)
 				Menu_List(iParam1);
 		}
+		
 		case MenuAction_Select:
 		{
 			decl String:sOption[32];
@@ -952,6 +1140,9 @@ public Action:OnWeaponDrop(client, weapon)
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponCanUse(client, weapon)
 {
+	if (IsFakeClient(client))
+		return Plugin_Handled;
+	
 	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(weapon))
 	{
 		for (new index = 0; index < entArraySize; index++)
@@ -1557,64 +1748,333 @@ public Action:Command_Transfer(client, args)
 {
 	if (GetCmdArgs() < 2)
 	{
-		CReplyToCommand(client, "\x07%s[entWatch] \x07%sUsage: sm_etransfer <owner> <reciever>", color_tag, color_warning);
+		CReplyToCommand(client, "\x07%s[entWatch] \x07%sUsage: sm_etransfer <owner> <receiver>", color_tag, color_warning);
+		
 		return Plugin_Handled;
 	}
+	
+	new bool:bFoundWeapon = false;
+	new iEntityIndex = -1
+	new iWeaponCount = 0;
+	new target = -1;
+	new receiver = -1;
 	
 	new String:target_argument[64];
 	GetCmdArg(1, target_argument, sizeof(target_argument));
 	
-	new String:reciever_argument[64];
-	GetCmdArg(2, reciever_argument, sizeof(reciever_argument));
+	new String:receiver_argument[64];
+	GetCmdArg(2, receiver_argument, sizeof(receiver_argument));
 	
-	new target = -1;
-	if ((target = FindTarget(client, target_argument, false)) == -1)
-		return Plugin_Handled;
-	
-	new reciever = -1;
-	if ((reciever = FindTarget(client, reciever_argument, false)) == -1)
-		return Plugin_Handled;
-	
-	if (GetClientTeam(target) != GetClientTeam(reciever))
+	if ((receiver = FindTarget(client, receiver_argument, false)) == -1)
 		return Plugin_Handled;
 	
 	if (g_bConfigLoaded && !g_bRoundTransition)
 	{
-		for (new index = 0; index < entArraySize; index++)
+		if (target_argument[0] == '$')
 		{
-			if (entArray[index][ent_ownerid] != -1)
+			strcopy(target_argument, sizeof(target_argument), target_argument[1]);
+		
+			for (new i = 0; i < entArraySize; i++)
 			{
-				if (entArray[index][ent_ownerid] == target)
+				if (StrEqual(target_argument, entArray[i][ent_name], false) || StrEqual(target_argument, entArray[i][ent_shortname], false))
 				{
-					if (entArray[index][ent_allowtransfer])
+				
+					iWeaponCount++;
+					bFoundWeapon = true;
+					iEntityIndex = i;
+				}
+			}
+		}
+		else
+		{
+			target = FindTarget(client, target_argument, false)
+			
+			if (target != -1)
+			{
+				if (GetClientTeam(target) != GetClientTeam(receiver))
+				{
+					CPrintToChat(client, "\x07%s[entWatch] \x07%sThe receivers team differs from the targets team.", color_tag, color_warning);
+					return Plugin_Handled;
+				}
+				
+				for (new index = 0; index < entArraySize; index++)
+				{
+					if (entArray[index][ent_ownerid] != -1)
 					{
-						if (IsValidEdict(entArray[index][ent_weaponid]))
+						if (entArray[index][ent_ownerid] == target)
 						{
-							new String:buffer_classname[64];
-							GetEdictClassname(entArray[index][ent_weaponid], buffer_classname, sizeof(buffer_classname));
-							
-							SDKHooks_DropWeapon(target, entArray[index][ent_weaponid]);
-							GivePlayerItem(target, buffer_classname);
-							
-							if (entArray[index][ent_chat])
+							if (entArray[index][ent_allowtransfer])
 							{
-								entArray[index][ent_chat] = false;
-								EquipPlayerWeapon(reciever, entArray[index][ent_weaponid]);
-								entArray[index][ent_chat] = true;
-							}
-							else
-							{
-								EquipPlayerWeapon(reciever, entArray[index][ent_weaponid]);
+								if (IsValidEdict(entArray[index][ent_weaponid]))
+								{
+									new String:buffer_classname[64];
+									GetEdictClassname(entArray[index][ent_weaponid], buffer_classname, sizeof(buffer_classname));
+									
+									SDKHooks_DropWeapon(target, entArray[index][ent_weaponid]);
+									GivePlayerItem(target, buffer_classname);
+									
+									if (entArray[index][ent_chat])
+									{
+										entArray[index][ent_chat] = false;
+										EquipPlayerWeapon(receiver, entArray[index][ent_weaponid]);
+										entArray[index][ent_chat] = true;
+									}
+									else
+									{
+										EquipPlayerWeapon(receiver, entArray[index][ent_weaponid]);
+									}
+									
+									CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, target, color_warning, color_name, receiver);
+	
+									LogAction(client, target, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, receiver);
+									
+									return Plugin_Handled;
+								}
 							}
 						}
 					}
 				}
 			}
+			else
+			{
+				return Plugin_Handled;
+			}
 		}
 	}
 	
-	CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, target, color_warning, color_name, reciever);
-	LogAction(client, target, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, target, reciever);
+	if (iWeaponCount > 1)
+	{
+		new Handle:hEdictMenu = CreateMenu(EdictMenu_Handler);
+		new String:sMenuTemp[64];
+		new String:sIndexTemp[16];
+		new iHeldCount = 0;
+		SetMenuTitle(hEdictMenu, "[entWatch] Edict targets:");
+		
+		for (new i = 0; i < entArraySize; i++)
+		{
+			if (StrEqual(target_argument, entArray[i][ent_name], false) || StrEqual(target_argument, entArray[i][ent_shortname], false))
+			{
+				if (entArray[i][ent_allowtransfer])
+				{
+					if (entArray[i][ent_ownerid] != -1)
+					{
+						IntToString(i, sIndexTemp, sizeof(sIndexTemp));
+						Format(sMenuTemp, sizeof(sMenuTemp), "%s | %N (#%i)", entArray[i][ent_name], entArray[i][ent_ownerid], GetClientUserId(entArray[i][ent_ownerid]));
+						AddMenuItem(hEdictMenu, sIndexTemp, sMenuTemp, ITEMDRAW_DEFAULT);
+						iHeldCount++;
+					}
+					/*else //not a good idea
+					{
+						IntToString(i, sIndexTemp, sizeof(sIndexTemp));
+						Format(sMenuTemp, sizeof(sMenuTemp), "%s", entArray[i][ent_name]);
+						AddMenuItem(hEdictMenu, sIndexTemp, sMenuTemp, ITEMDRAW_DEFAULT);
+					}*/
+				}
+			}
+		}
+		
+		if (iHeldCount == 1)
+		{
+			iEntityIndex = StringToInt(sIndexTemp);
+			
+			if (entArray[iEntityIndex][ent_allowtransfer])
+			{
+				if (entArray[iEntityIndex][ent_ownerid] != -1)
+				{
+					if (IsValidEdict(entArray[iEntityIndex][ent_weaponid]))
+					{
+						new iCurOwner = entArray[iEntityIndex][ent_ownerid];
+						
+						if (GetClientTeam(receiver) != GetClientTeam(iCurOwner))
+						{
+							CPrintToChat(client, "\x07%s[entWatch] \x07%sThe receivers team differs from the targets team.", color_tag, color_warning);
+							CloseHandle(hEdictMenu);
+							return Plugin_Handled;
+						}
+						
+						new String:buffer_classname[64];
+						GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
+						
+						SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+						GivePlayerItem(iCurOwner, buffer_classname);
+						
+						if (entArray[iEntityIndex][ent_chat])
+						{
+							entArray[iEntityIndex][ent_chat] = false;
+							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							entArray[iEntityIndex][ent_chat] = true;
+						}
+						else
+						{
+							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+						}
+						
+						CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
+		
+						LogAction(client, iCurOwner, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, iCurOwner, receiver);
+					}
+				}
+				else
+				{
+					CPrintToChat(client, "\x07%s[entWatch] \x07%sTarget is not valid.", color_tag, color_warning);
+				}
+			}
+			
+			CloseHandle(hEdictMenu);
+		}
+		else if (iHeldCount >= 2)
+		{
+			g_iAdminMenuTarget[client] = receiver;
+			DisplayMenu(hEdictMenu, client, MENU_TIME_FOREVER);
+		}
+		else
+		{
+			CPrintToChat(client, "\x07%s[entWatch] \x07%sNo one is currently holding that item.", color_tag, color_warning);
+			CloseHandle(hEdictMenu);
+		}
+	}
+	else
+	{
+		if (entArray[iEntityIndex][ent_allowtransfer])
+		{
+			if (entArray[iEntityIndex][ent_ownerid] != -1)
+			{
+				if (IsValidEdict(entArray[iEntityIndex][ent_weaponid]))
+				{
+					new iCurOwner = entArray[iEntityIndex][ent_ownerid];
+					
+					new String:buffer_classname[64];
+					GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
+					
+					SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+					GivePlayerItem(iCurOwner, buffer_classname);
+					
+					if (entArray[iEntityIndex][ent_chat])
+					{
+						entArray[iEntityIndex][ent_chat] = false;
+						EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+						entArray[iEntityIndex][ent_chat] = true;
+					}
+					else
+					{
+						EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+					}
+					
+					bFoundWeapon = true;
+					
+					CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
+	
+					LogAction(client, iCurOwner, "\"%L\" transfered all items from \"%L\" to \"%L\"", client, iCurOwner, receiver);
+				}
+			}
+			else
+			{
+				new entity = Entity_GetEntityFromHammerID(entArray[iEntityIndex][ent_hammerid]);
+				
+				if (entArray[iEntityIndex][ent_chat])
+				{
+					entArray[iEntityIndex][ent_chat] = false;
+					EquipPlayerWeapon(receiver, entity);
+					entArray[iEntityIndex][ent_chat] = true;
+				}
+				else
+				{
+					EquipPlayerWeapon(receiver, entity);
+				}
+				
+				bFoundWeapon = true;
+				
+				CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered \x07%s%s \x07%sto \x07%s%N", color_tag, color_name, client, color_warning, entArray[iEntityIndex][ent_color], entArray[iEntityIndex][ent_name], color_warning, color_name, receiver);
+				
+				LogAction(client, -1, "\"%L\" transfered \"%s\" to \"%L\"", client, entArray[iEntityIndex][ent_name], receiver);
+			}
+		}
+	}
+	
+	if (!bFoundWeapon)
+		CPrintToChat(client, "\x07%s[entWatch] \x07%sInvalid item name.", color_tag, color_warning);
+
+	return Plugin_Handled;
+}
+
+public EdictMenu_Handler(Handle:hEdictMenu, MenuAction:hAction, iParam1, iParam2)
+{
+	switch (hAction)
+	{
+		case MenuAction_End:
+			CloseHandle(hEdictMenu);
+	
+		case MenuAction_Select:
+		{
+			new String:sSelected[32];
+			GetMenuItem(hEdictMenu, iParam2, sSelected, sizeof(sSelected));
+			new iEntityIndex = StringToInt(sSelected);
+			new receiver = g_iAdminMenuTarget[iParam1];
+			
+			if (receiver == 0)
+			{
+				CPrintToChat(iParam1, "\x07%s[entWatch] \x07%sReceiver is not valid anymore.", color_tag, color_warning);
+				return;
+			}
+			
+			if (entArray[iEntityIndex][ent_allowtransfer])
+			{
+				if (entArray[iEntityIndex][ent_ownerid] != -1)
+				{
+					if (IsValidEdict(entArray[iEntityIndex][ent_weaponid]))
+					{
+						new iCurOwner = entArray[iEntityIndex][ent_ownerid];
+						
+						if (GetClientTeam(receiver) != GetClientTeam(iCurOwner))
+						{
+							CPrintToChat(iParam1, "\x07%s[entWatch] \x07%sThe receivers team differs from the targets team.", color_tag, color_warning);
+							return;
+						}
+						
+						new String:buffer_classname[64];
+						GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
+						
+						SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+						GivePlayerItem(iCurOwner, buffer_classname);
+						
+						if (entArray[iEntityIndex][ent_chat])
+						{
+							entArray[iEntityIndex][ent_chat] = false;
+							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+							entArray[iEntityIndex][ent_chat] = true;
+						}
+						else
+						{
+							EquipPlayerWeapon(receiver, entArray[iEntityIndex][ent_weaponid]);
+						}
+						
+						CPrintToChatAll("\x07%s[entWatch] \x07%s%N \x07%stransfered all items from \x07%s%N \x07%sto \x07%s%N", color_tag, color_name, iParam1, color_warning, color_name, iCurOwner, color_warning, color_name, receiver);
+		
+						LogAction(iParam1, iCurOwner, "\"%L\" transfered all items from \"%L\" to \"%L\"", iParam1, iCurOwner, receiver);
+					}
+				}
+				else
+				{
+					CPrintToChat(iParam1, "\x07%s[entWatch] \x07%sItem is not valid anymore.", color_tag, color_warning);
+				}
+			}
+		}
+	}
+}
+
+public Action:Command_DebugArray(client, args)
+{
+	if (g_bConfigLoaded && !g_bRoundTransition)
+	{
+		for (new i = 0; i < entArraySize; i++)
+		{
+			CPrintToChat(client, "\x07%s[entWatch] \x07%sInfo at \x07%sindex \x04%i\x07%s: \x07%sWeaponID \x04%i\x07%s | \x07%sOwnerID \x04%i\x07%s | \x07%sHammerID \x04%i\x07%s | \x07%sName\x07%s \"\x04%s\x07%s\" | \x07%sShortName\x07%s \"\x04%s\x07%s\"", color_tag, color_warning, color_pickup, i, color_warning, color_pickup, entArray[i][ent_weaponid], color_warning, color_pickup, entArray[i][ent_ownerid], color_warning, color_pickup, entArray[i][ent_hammerid], color_warning, color_pickup, color_warning, entArray[i][ent_name], color_warning, color_pickup, color_warning, entArray[i][ent_shortname], color_warning);
+		}
+	}
+	else
+	{
+		CPrintToChat(client, "\x07%s[entWatch] \x07%sConfig file has not yet loaded or the round is transitioning.", color_tag, color_warning);
+	}
 	
 	return Plugin_Handled;
 }

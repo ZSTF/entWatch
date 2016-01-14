@@ -102,6 +102,25 @@ stock Entity_GetClassName(entity, String:buffer[], size)
 	return true;
 }
 
+//----------------------------------------------------------------------------------------------------
+// Purpose: SMLib
+//----------------------------------------------------------------------------------------------------
+stock Entity_GetEntityFromHammerID(hammerID)
+{
+	for (new i = 0; i < GetEntityCount(); i++)
+	{
+		if (IsValidEdict(i))
+		{
+			if (Entity_GetHammerID(i) == hammerID)
+			{
+				return i;
+			}
+		}
+	}
+	
+	return -1;
+}
+
 public SharedPlugin:__pl_entWatch =
 {
 	name = "entWatch",
