@@ -8,6 +8,7 @@
 #include <sourcemod>
 #include <sdkhooks>
 #include <sdktools>
+#include <cstrike>
 #include <clientprefs>
 #include <adminmenu>
 #tryinclude <morecolors>
@@ -93,6 +94,8 @@ new bool:g_bConfigLoaded     = false;
 new bool:g_bLateLoad         = false;
 
 new Handle:g_hOnPickedUp;
+new Handle:g_hGetSlot;
+new Handle:g_hBumpWeapon;
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin information
@@ -189,6 +192,18 @@ public OnPluginStart()
 		SetFailState("Couldn't load plugin.entWatch game config!")
 		return;
 	}
+	if(GameConfGetOffset(hGameConf, "GetSlot") == -1)
+	{
+		CloseHandle(hGameConf);
+		SetFailState("Couldn't get GetSlot offset from game config!");
+		return;
+	}
+	if(GameConfGetOffset(hGameConf, "BumpWeapon") == -1)
+	{
+		CloseHandle(hGameConf);
+		SetFailState("Couldn't get BumpWeapon offset from game config!");
+		return;
+	}
 	if(GameConfGetOffset(hGameConf, "OnPickedUp") == -1)
 	{
 		CloseHandle(hGameConf);
@@ -196,6 +211,30 @@ public OnPluginStart()
 		return;
 	}
 
+	// 320	CBaseCombatWeapon::GetSlot(void)const
+	StartPrepSDKCall(SDKCall_Entity);
+	if(!PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, "GetSlot"))
+	{
+		CloseHandle(hGameConf);
+		SetFailState("PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, \"GetSlot\" failed!");
+		return;
+	}
+	PrepSDKCall_SetReturnInfo(SDKType_PlainOldData, SDKPass_Plain);
+	g_hGetSlot = EndPrepSDKCall();
+
+	// 397	CCSPlayer::BumpWeapon(CBaseCombatWeapon *)
+	StartPrepSDKCall(SDKCall_Player);
+	if(!PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, "BumpWeapon"))
+	{
+		CloseHandle(hGameConf);
+		SetFailState("PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, \"BumpWeapon\" failed!");
+		return;
+	}
+	PrepSDKCall_SetReturnInfo(SDKType_Bool, SDKPass_Plain);
+	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+	g_hBumpWeapon = EndPrepSDKCall();
+
+	// 300	CBaseCombatWeapon::OnPickedUp(CBaseCombatCharacter *)
 	StartPrepSDKCall(SDKCall_Entity);
 	if(!PrepSDKCall_SetFromConf(hGameConf, SDKConf_Virtual, "OnPickedUp"))
 	{
@@ -207,6 +246,16 @@ public OnPluginStart()
 	g_hOnPickedUp = EndPrepSDKCall();
 
 	CloseHandle(hGameConf);
+	if(g_hGetSlot == INVALID_HANDLE)
+	{
+		SetFailState("Couldn't prepare GetSlot SDKCall!")
+		return;
+	}
+	if(g_hGetSlot == INVALID_HANDLE)
+	{
+		SetFailState("Couldn't prepare BumpWeapon SDKCall!")
+		return;
+	}
 	if(g_hOnPickedUp == INVALID_HANDLE)
 	{
 		SetFailState("Couldn't prepare OnPickedUp SDKCall!")
@@ -720,7 +769,7 @@ public MenuHandler_Menu_TransferTarget(Handle:hMenu, MenuAction:hAction, iParam1
 						new String:buffer_classname[64];
 						GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
 						
-						SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+						CS_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid], false);
 						GivePlayerItem(iCurOwner, buffer_classname);
 						
 						if (entArray[iEntityIndex][ent_chat])
@@ -1015,7 +1064,7 @@ public OnClientDisconnect(client)
 				entArray[index][ent_ownerid] = -1;
 				
 				if (entArray[index][ent_forcedrop] && IsValidEdict(entArray[index][ent_weaponid]))
-					SDKHooks_DropWeapon(client, entArray[index][ent_weaponid]);
+					CS_DropWeapon(client, entArray[index][ent_weaponid], false);
 				
 				if (entArray[index][ent_chat])
 				{
@@ -1063,7 +1112,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 				entArray[index][ent_ownerid] = -1;
 				
 				if (entArray[index][ent_forcedrop] && IsValidEdict(entArray[index][ent_weaponid]))
-					SDKHooks_DropWeapon(client, entArray[index][ent_weaponid]);
+					CS_DropWeapon(client, entArray[index][ent_weaponid], false);
 				
 				if (entArray[index][ent_chat])
 				{
@@ -1842,7 +1891,7 @@ public Action:Command_Transfer(client, args)
 									new String:buffer_classname[64];
 									GetEdictClassname(entArray[index][ent_weaponid], buffer_classname, sizeof(buffer_classname));
 									
-									SDKHooks_DropWeapon(target, entArray[index][ent_weaponid]);
+									CS_DropWeapon(target, entArray[index][ent_weaponid], false);
 									GivePlayerItem(target, buffer_classname);
 									
 									if (entArray[index][ent_chat])
@@ -1927,7 +1976,7 @@ public Action:Command_Transfer(client, args)
 						new String:buffer_classname[64];
 						GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
 						
-						SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+						CS_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid], false);
 						GivePlayerItem(iCurOwner, buffer_classname);
 						
 						if (entArray[iEntityIndex][ent_chat])
@@ -1978,7 +2027,7 @@ public Action:Command_Transfer(client, args)
 					new String:buffer_classname[64];
 					GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
 					
-					SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+					CS_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid], false);
 					GivePlayerItem(iCurOwner, buffer_classname);
 					
 					if (entArray[iEntityIndex][ent_chat])
@@ -2066,7 +2115,7 @@ public EdictMenu_Handler(Handle:hEdictMenu, MenuAction:hAction, iParam1, iParam2
 						new String:buffer_classname[64];
 						GetEdictClassname(entArray[iEntityIndex][ent_weaponid], buffer_classname, sizeof(buffer_classname))
 						
-						SDKHooks_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid]);
+						CS_DropWeapon(iCurOwner, entArray[iEntityIndex][ent_weaponid], false);
 						GivePlayerItem(iCurOwner, buffer_classname);
 						
 						if (entArray[iEntityIndex][ent_chat])
@@ -2510,7 +2559,11 @@ public Native_IsSpecialItem(Handle:hPlugin, iArgC)
 
 stock FixedEquipPlayerWeapon(client, weapon)
 {
-	SDKCall(g_hOnPickedUp, weapon, client);
-	EquipPlayerWeapon(client, weapon);
-	OnWeaponEquip(client, weapon);
+	new iWeaponSlot = SDKCall(g_hGetSlot, weapon);
+	new WeaponInSlot = GetPlayerWeaponSlot(client, iWeaponSlot);
+	if(WeaponInSlot	!= -1)
+		CS_DropWeapon(client, WeaponInSlot, false);
+
+	if(SDKCall(g_hBumpWeapon, client, weapon))
+		SDKCall(g_hOnPickedUp, weapon, client);
 }

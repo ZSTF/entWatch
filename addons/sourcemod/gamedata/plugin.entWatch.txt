@@ -4,6 +4,16 @@
 	{
 		"Offsets"
 		{
+			"GetSlot"
+			{
+				"windows"	"320"
+				"linux"		"321"
+			}
+			"BumpWeapon"
+			{
+				"windows"	"397"
+				"linux"		"398"
+			}
 			"OnPickedUp"
 			{
 				"windows"	"300"
