@@ -14,7 +14,7 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.7.0"
+#define PLUGIN_VERSION "3.7.1"
 #undef REQUIRE_PLUGIN
 
 //----------------------------------------------------------------------------------------------------
@@ -93,9 +93,9 @@ new bool:g_bRoundTransition  = false;
 new bool:g_bConfigLoaded     = false;
 new bool:g_bLateLoad         = false;
 
-new Handle:g_hOnPickedUp;
 new Handle:g_hGetSlot;
 new Handle:g_hBumpWeapon;
+new Handle:g_hOnPickedUp;
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin information
@@ -103,7 +103,7 @@ new Handle:g_hBumpWeapon;
 public Plugin:myinfo =
 {
 	name         = "entWatch",
-	author       = "Prometheum & zaCade. Edits: George & Obus",
+	author       = "Prometheum & zaCade. Edits: George & Obus & BotoX",
 	description  = "Notify players about entity interactions.",
 	version      = PLUGIN_VERSION,
 	url          = "https://github.com/Obuss/entWatch" // Original here: "https://github.com/zaCade/entWatch"
