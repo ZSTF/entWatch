@@ -1302,6 +1302,9 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 {
 	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(button))
 	{
+		if (GetEntProp(button, Prop_Data, "m_bLocked", 1))
+			return Plugin_Handled;
+
 		for (new index = 0; index < entArraySize; index++)
 		{
 			if (entArray[index][ent_buttonid] != -1 && entArray[index][ent_buttonid] == button)
