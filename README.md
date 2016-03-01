@@ -35,10 +35,12 @@ You need to follow a few simple instructions to install entWatch:
 * ze_crashbandicoot_v1fix
 * ze_cyberderp_v1_4
 * ze_death_star_escape_v4_3
+* ze_doom_v1_1
 * ze_fapescape_v1_2
 * ze_ffvii_mako_reactor_v1_4_1
 * ze_ffvii_mako_reactor_v3_1
 * ze_ffvii_mako_reactor_v5_3
+* ze_ffvii_mako_reactor_v6_b08
 * ze_ffvii_mako_russianversion18
 * ze_ffxii_feywood_b3_1
 * ze_ffxii_paramina_rift_v1_3

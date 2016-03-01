@@ -14,7 +14,7 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.7.1"
+#define PLUGIN_VERSION "3.7.3"
 #undef REQUIRE_PLUGIN
 
 //----------------------------------------------------------------------------------------------------
@@ -1302,7 +1302,8 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 {
 	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(button))
 	{
-		if (GetEntProp(button, Prop_Data, "m_bLocked", 1))
+		int iOffset = FindDataMapOffs(button, "m_bLocked");
+		if (iOffset != -1 && GetEntData(button, iOffset, 1))
 			return Plugin_Handled;
 
 		for (new index = 0; index < entArraySize; index++)
