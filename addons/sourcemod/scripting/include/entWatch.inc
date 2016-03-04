@@ -45,6 +45,14 @@ native bool:entWatch_UnbanClient(client);
 native bool:entWatch_IsSpecialItem(entity);
 
 /**
+ * Checks if a client has a special item.
+ *
+ * @param client		Client index to check
+ * @return				True if client has a special item, false otherwsie
+ */
+native bool:entWatch_HasSpecialItem(client);
+
+/**
  * Called when a client is e-banned by any means
  *
  * @param admin			Admin index that issued the ban
@@ -137,5 +145,6 @@ public __pl_entWatch_SetNTVOptional()
 	MarkNativeAsOptional("entWatch_BanClient");
 	MarkNativeAsOptional("entWatch_UnbanClient");
 	MarkNativeAsOptional("entWatch_IsSpecialItem");
+	MarkNativeAsOptional("entWatch_HasSpecialItem");
 }
 #endif

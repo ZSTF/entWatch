@@ -115,6 +115,7 @@ public APLRes:AskPluginLoad2(Handle:hThis, bool:bLate, String:sError[], err_max)
 	CreateNative("entWatch_BanClient", Native_BanClient);
 	CreateNative("entWatch_UnbanClient", Native_UnbanClient);
 	CreateNative("entWatch_IsSpecialItem", Native_IsSpecialItem);
+	CreateNative("entWatch_HasSpecialItem", Native_HasSpecialItem);
 
 	RegPluginLibrary("entWatch");
 
@@ -2553,6 +2554,32 @@ public Native_IsSpecialItem(Handle:hPlugin, iArgC)
 	for (new index = 0; index < entArraySize; index++)
 	{
 		if (entArray[index][ent_buttonid] == entity)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+public Native_HasSpecialItem(Handle:hPlugin, iArgC)
+{
+	if (!g_bConfigLoaded)
+	{
+		return false;
+	}
+
+	new client = GetNativeCell(1);
+
+	if (client < 1 || client > MaxClients || !IsClientInGame(client))
+	{
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid client/client is not in game");
+		return false;
+	}
+
+	for (new index = 0; index < entArraySize; index++)
+	{
+		if (entArray[index][ent_ownerid] == client)
 		{
 			return true;
 		}
