@@ -15,7 +15,7 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "4.1.3"
+#define PLUGIN_VERSION "4.1.14"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -80,7 +80,6 @@ char g_sRestrictedBy[MAXPLAYERS + 1][64];
 int  g_iRestrictedLength[MAXPLAYERS + 1];
 int  g_iRestrictedIssued[MAXPLAYERS + 1];
 int  g_iAdminMenuTarget[MAXPLAYERS + 1];
-//int  g_iClientHudPref[MAXPLAYERS + 1];
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin settings
@@ -986,6 +985,7 @@ public Action Event_RoundEnd(Event hEvent, const char[] sName, bool bDontBroadca
 			SDKUnhook(entArray[index][ent_buttonid], SDKHook_Use, OnButtonUse);
 			entArray[index][ent_weaponid]       = -1;
 			entArray[index][ent_buttonid]       = -1;
+			CS_SetClientClanTag(entArray[index][ent_ownerid], "");
 			entArray[index][ent_ownerid]        = -1;
 			entArray[index][ent_cooldowntime]   = -1;
 			entArray[index][ent_uses]           = 0;
@@ -1115,6 +1115,7 @@ public Action Event_PlayerDeath(Event hEvent, const char[] sName, bool bDontBroa
 		{
 			if (entArray[index][ent_ownerid] != -1 && entArray[index][ent_ownerid] == iClient)
 			{
+				CS_SetClientClanTag(entArray[index][ent_ownerid], "");
 				entArray[index][ent_ownerid] = -1;
 
 				if (entArray[index][ent_forcedrop] && IsValidEdict(entArray[index][ent_weaponid]))
@@ -1195,6 +1196,7 @@ public Action OnWeaponDrop(int iClient, int iWeapon)
 			{
 				if (entArray[index][ent_weaponid] != -1 && entArray[index][ent_weaponid] == iWeapon)
 				{
+					CS_SetClientClanTag(entArray[index][ent_ownerid], "");
 					entArray[index][ent_ownerid] = -1;
 
 					if (entArray[index][ent_chat])
@@ -1434,10 +1436,12 @@ public Action Timer_DisplayHUD(Handle htimer)
 							if (entArray[index][ent_cooldowntime] > 0)
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 							else
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "R", entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 						}
 						else if (entArray[index][ent_mode] == 3)
@@ -1445,10 +1449,12 @@ public Action Timer_DisplayHUD(Handle htimer)
 							if (entArray[index][ent_uses] < entArray[index][ent_maxuses])
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 							else
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 						}
 						else if (entArray[index][ent_mode] == 4)
@@ -1456,16 +1462,19 @@ public Action Timer_DisplayHUD(Handle htimer)
 							if (entArray[index][ent_cooldowntime] > 0)
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 							else
 							{
 								if (entArray[index][ent_uses] < entArray[index][ent_maxuses])
 								{
 									Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
+									CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 								}
 								else
 								{
 									Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
+									CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 								}
 							}
 						}
@@ -1474,20 +1483,24 @@ public Action Timer_DisplayHUD(Handle htimer)
 							if (entArray[index][ent_cooldowntime] > 0)
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 							else
 							{
 								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 							}
 						}
 						else
 						{
 							Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "N/A", entArray[index][ent_ownerid]);
+							CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 						}
 					}
 					else
 					{
 						Format(sBuffer_temp, sizeof(sBuffer_temp), "%s: %N\n", entArray[index][ent_shortname], entArray[index][ent_ownerid]);
+						CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
 					}
 
 					if (strlen(sBuffer_temp) + strlen(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])]) <= sizeof(sBuffer_teamtext[]))
