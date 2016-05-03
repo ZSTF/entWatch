@@ -14,7 +14,8 @@
 #tryinclude <entWatch>
 #tryinclude <csgomorecolors>
 
-#define PLUGIN_VERSION "4.1.2"
+
+#define PLUGIN_VERSION "4.1.3"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
