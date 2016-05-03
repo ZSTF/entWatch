@@ -11,10 +11,10 @@
 #include <cstrike>
 #include <clientprefs>
 #include <adminmenu>
-#tryinclude <morecolors>
 #tryinclude <entWatch>
+#tryinclude <csgomorecolors>
 
-#define PLUGIN_VERSION "3.7.118"
+#define PLUGIN_VERSION "4.0.1"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
