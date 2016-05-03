@@ -14,7 +14,7 @@
 #tryinclude <morecolors>
 #tryinclude <entWatch>
 
-#define PLUGIN_VERSION "3.7.117"
+#define PLUGIN_VERSION "3.7.118"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -109,7 +109,7 @@ public Plugin myinfo =
 	author       = "Prometheum & zaCade. Edits: George & Obus & BotoX",
 	description  = "Notify players about entity interactions.",
 	version      = PLUGIN_VERSION,
-	url          = "https://github.com/Obuss/entWatch" // Original here: "https://github.com/zaCade/entWatch"
+	url          = "https://github.com/Locomotivers/entWatch-CSGO/" // Current CSS version here: "https://github.com/Obuss/entWatch" Original here: "https://github.com/zaCade/entWatch"
 };
 
 public APLRes AskPluginLoad2(Handle hThis, bool bLate, char[] sError, int iErr_max)
