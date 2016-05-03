@@ -15,7 +15,7 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "4.1.14"
+#define PLUGIN_VERSION "4.1.51"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -51,6 +51,10 @@ int entArray[512][entities];
 int entArraySize = 512;
 int triggerArray[512];
 int triggerSize = 512;
+
+int g_iStoreIndex = 0;
+char g_sEntIndex [32][3];
+char g_sEntMsg[32][129];
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Color settings
@@ -92,6 +96,9 @@ ConVar g_hCvar_ConfigColor;
 Handle g_hAdminMenu;
 Handle g_hOnBanForward;
 Handle g_hOnUnbanForward;
+
+Menu g_hEntMenu[MAXPLAYERS + 1]	= {null, ...};
+Panel g_hInfoPlayer[MAXPLAYERS + 1] = {null, ...};
 
 bool g_bRoundTransition  = false;
 bool g_bConfigLoaded     = false;
@@ -169,6 +176,7 @@ public void OnPluginStart()
 	HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
 
 	CreateTimer(1.0, Timer_DisplayHUD, _, TIMER_REPEAT);
+	CreateTimer(1.0, Timer_NotifHUD, _, TIMER_REPEAT);
 	CreateTimer(1.0, Timer_Cooldowns, _, TIMER_REPEAT);
 
 	LoadTranslations("entWatch.phrases");
@@ -1415,19 +1423,19 @@ public Action OnButtonUse(int iButton, int iActivator, int iCaller, UseType uTyp
 //----------------------------------------------------------------------------------------------------
 // Purpose: Display current special weapon holders
 //----------------------------------------------------------------------------------------------------
-public Action Timer_DisplayHUD(Handle htimer)
+public Action Timer_NotifHUD(Handle htimer)
 {
 	if (GetConVarBool(g_hCvar_DisplayEnabled))
 	{
 		if (g_bConfigLoaded && !g_bRoundTransition)
 		{
-			char sBuffer_teamtext[5][250];
+			g_iStoreIndex = 0;
 
 			for (int index = 0; index < entArraySize; index++)
 			{
 				if (entArray[index][ent_hud] && entArray[index][ent_ownerid] != -1)
 				{
-					char sBuffer_temp[128];
+					// char //sBuffer_//temp[128];
 
 					if (GetConVarBool(g_hCvar_DisplayCooldowns))
 					{
@@ -1435,46 +1443,60 @@ public Action Timer_DisplayHUD(Handle htimer)
 						{
 							if (entArray[index][ent_cooldowntime] > 0)
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 							else
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "R", entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "R", entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 						}
 						else if (entArray[index][ent_mode] == 3)
 						{
 							if (entArray[index][ent_uses] < entArray[index][ent_maxuses])
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 							else
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 						}
 						else if (entArray[index][ent_mode] == 4)
 						{
 							if (entArray[index][ent_cooldowntime] > 0)
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 							else
 							{
 								if (entArray[index][ent_uses] < entArray[index][ent_maxuses])
 								{
-									Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
-									CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+									Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
+									IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+									g_iStoreIndex++;
 								}
 								else
 								{
-									Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
-									CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+									Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
+									IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+									g_iStoreIndex++;
 								}
 							}
 						}
@@ -1482,66 +1504,193 @@ public Action Timer_DisplayHUD(Handle htimer)
 						{
 							if (entArray[index][ent_cooldowntime] > 0)
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 							else
 							{
-								Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
-								CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
+								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								g_iStoreIndex++;
 							}
 						}
 						else
 						{
-							Format(sBuffer_temp, sizeof(sBuffer_temp), "%s[%s]: %N\n", entArray[index][ent_shortname], "N/A", entArray[index][ent_ownerid]);
-							CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+							Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "N/A", entArray[index][ent_ownerid]);
+							IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+							CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+							g_iStoreIndex++;
 						}
 					}
 					else
 					{
-						Format(sBuffer_temp, sizeof(sBuffer_temp), "%s: %N\n", entArray[index][ent_shortname], entArray[index][ent_ownerid]);
-						CS_SetClientClanTag(entArray[index][ent_ownerid], sBuffer_temp);
+						Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s: %N\n", entArray[index][ent_shortname], entArray[index][ent_ownerid]);
+						IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
+						CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+						g_iStoreIndex++;
 					}
 
-					if (strlen(sBuffer_temp) + strlen(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])]) <= sizeof(sBuffer_teamtext[]))
-					{
-						StrCat(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])], sizeof(sBuffer_teamtext[]), sBuffer_temp);
-					}
+					// if (strlen(g_sEntIndex[g_iStoreIndex]) + strlen(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])]) <= sizeof(sBuffer_teamtext[]))
+					// {
+					// 	StrCat(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])], sizeof(sBuffer_teamtext[]), g_sEntIndex[g_iStoreIndex]);
+					// }
 				}
 			}
 
-			for (int iPly = 1; iPly <= MaxClients; iPly++)
-			{
-				if (IsClientConnected(iPly) && IsClientInGame(iPly))
-				{
-					if (g_bDisplay[iPly])
-					{
-						char sBuffer_text[250];
+			// CSS Style HUD
+			// for (int iPly = 1; iPly <= MaxClients; iPly++)
+			// {
+			// 	if (IsClientConnected(iPly) && IsClientInGame(iPly))
+			// 	{
+			// 		if (g_bDisplay[iPly])
+			// 		{
+			// 			char sBuffer_text[250];
 
-						for (int iTeamid = 0; iTeamid < sizeof(sBuffer_teamtext); iTeamid++)
-						{
-							if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(iPly) == iTeamid || !IsPlayerAlive(iPly) || CheckCommandAccess(iPly, "entWatch_chat", ADMFLAG_CHAT)))
-							{
-								if (strlen(sBuffer_teamtext[iTeamid]) + strlen(sBuffer_text) <= sizeof(sBuffer_text))
-								{
-									StrCat(sBuffer_text, sizeof(sBuffer_text), sBuffer_teamtext[iTeamid]);
-								}
-							}
-						}
+			// 			for (int iTeamid = 0; iTeamid < sizeof(sBuffer_teamtext); iTeamid++)
+			// 			{
+			// 				if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(iPly) == iTeamid || !IsPlayerAlive(iPly) || CheckCommandAccess(iPly, "entWatch_chat", ADMFLAG_CHAT)))
+			// 				{
+			// 					if (strlen(sBuffer_teamtext[iTeamid]) + strlen(sBuffer_text) <= sizeof(sBuffer_text))
+			// 					{
+			// 						StrCat(sBuffer_text, sizeof(sBuffer_text), sBuffer_teamtext[iTeamid]);
+			// 					}
+			// 				}
+			// 			}
 
 						
 						
-						// CSS VERSION 
-						// Handle hBuffer = StartMessageOne("KeyHintText", iPly);
-						// BfWriteByte(hBuffer, 1);
-						// BfWriteString(hBuffer, sBuffer_text);
-						// EndMessage();
-					}
-				}
-			}
+					
+			// 			// Handle hBuffer = StartMessageOne("KeyHintText", iPly);
+			// 			// BfWriteByte(hBuffer, 1);
+			// 			// BfWriteString(hBuffer, sBuffer_text);
+			// 			// EndMessage();
+			// 		}
+			// 	}
+			// }
 		}
 	}
 }
+
+public Action Timer_DisplayHUD(Handle hTimer)
+{
+	for (int iClient = 1; iClient <= MaxClients; iClient++)
+	{
+		if (IsClientConnected(iClient) && IsClientInGame(iClient))
+		{
+			if (g_bDisplay[iClient])
+			{
+				if (g_bDisplay[iClient] && (!IsVoteInProgress() || !IsClientInVotePool(iClient))
+					&& GetClientMenu(iClient) == MenuSource_None)
+				{
+					g_hEntMenu[iClient] = CreateMenu(MenuHandler_EntMenu);
+					g_hEntMenu[iClient].SetTitle("Entity Hud Menu");
+					g_hEntMenu[iClient].ExitButton = true;
+
+					for (int index = 0; index < g_iStoreIndex; index++)
+					{
+						//LogMessage("str equal returns entmsg at the index of %i, is %s.", index , g_sEntMsg[index]);
+							if(!StrEqual(g_sEntMsg[index], ""))
+							{
+								AddMenuItem(g_hEntMenu[iClient], g_sEntIndex[index], g_sEntMsg[index]);
+							}
+					}	
+					if (g_hEntMenu[iClient] != null)
+						g_hEntMenu[iClient].Display(iClient, MENU_TIME_FOREVER);
+				}
+				else if (g_hEntMenu[iClient] != INVALID_HANDLE)
+				{
+					CancelClientMenu(iClient, true);
+				}
+			}
+
+		}
+	}
+}
+  
+public int MenuHandler_EntMenu(Menu hEntMenu, MenuAction eAction, int iClient, int iItem)
+{ 
+	switch (eAction)
+	{
+		case MenuAction_Select:
+		{
+			char sTitle[251];
+			char sText[251];
+			char sSteamId[33];
+			char sCurrIndex[2];
+			
+			int iItemIndex = -1;
+			
+			if (iItem == MenuCancel_Exit)
+			{
+				g_bDisplay[iClient] = false;
+				g_hEntMenu[iClient] = null;
+				g_hEntMenu[iClient].Cancel();
+			}
+			else
+			{
+				hEntMenu.GetItem(iItem, sCurrIndex, sizeof(sCurrIndex));
+				iItemIndex = (StringToInt(sCurrIndex));
+				
+				if(iItemIndex != -1)
+				{
+					delete(g_hEntMenu[iClient]);
+					g_bDisplay[iClient] = false;
+
+					Format(sTitle, sizeof(sTitle), "User Information that holds a %s", entArray[iItemIndex][ent_shortname]);
+					
+					GetClientAuthId(entArray[iItemIndex][ent_ownerid], AuthId_Steam2, sSteamId, sizeof(sSteamId));
+					Format(sText, sizeof(sText), "Client Name: %N\nClient SteamID: %s\nClient UserID: %d\n", entArray[iItemIndex][ent_ownerid], sSteamId, GetClientUserId(entArray[iItemIndex][ent_ownerid]));
+					
+					g_hInfoPlayer[iClient] = new Panel();
+			
+					SetPanelTitle(g_hInfoPlayer[iClient],sTitle);
+					DrawPanelText(g_hInfoPlayer[iClient],"[EntWatch]");
+					DrawPanelText(g_hInfoPlayer[iClient],sText);
+					DrawPanelItem(g_hInfoPlayer[iClient],"Exit")
+					
+					g_hInfoPlayer[iClient].Send(iClient, PanelHandler_DetailInfo, MENU_TIME_FOREVER);
+					
+					delete g_hInfoPlayer[iClient];
+				}
+			}
+		}
+		case MenuAction_Cancel:
+		{
+			if (iItem == MenuCancel_Exit)
+			{
+				g_bDisplay[iClient] = false;
+			}
+		}
+		case MenuAction_End:
+		{
+			delete(hEntMenu);
+		}
+	}
+}
+
+public int PanelHandler_DetailInfo(Menu hInfoPlayer, MenuAction eAction, int iClient, int iItem)
+{
+	if (eAction == MenuAction_Select)
+	{
+		if (iItem == 1)
+		{
+			CancelClientMenu(iClient, true);
+		}
+		g_bDisplay[iClient] = true;
+	} 
+	if (eAction == MenuAction_Cancel)
+	{
+		if (iItem == MenuCancel_Exit)
+		{
+			g_bDisplay[iClient] = true;
+		}
+		g_bDisplay[iClient] = true;
+	}
+}
+
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Calculate cooldown time
