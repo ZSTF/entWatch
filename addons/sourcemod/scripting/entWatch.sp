@@ -14,7 +14,7 @@
 #tryinclude <entWatch>
 #tryinclude <csgomorecolors>
 
-#define PLUGIN_VERSION "4.0.2"
+#define PLUGIN_VERSION "4.1.2"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -1515,10 +1515,13 @@ public Action Timer_DisplayHUD(Handle htimer)
 							}
 						}
 
-						Handle hBuffer = StartMessageOne("KeyHintText", iPly);
-						BfWriteByte(hBuffer, 1);
-						BfWriteString(hBuffer, sBuffer_text);
-						EndMessage();
+						
+						
+						// CSS VERSION 
+						// Handle hBuffer = StartMessageOne("KeyHintText", iPly);
+						// BfWriteByte(hBuffer, 1);
+						// BfWriteString(hBuffer, sBuffer_text);
+						// EndMessage();
 					}
 				}
 			}
