@@ -15,7 +15,7 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "4.1.51"
+#define PLUGIN_VERSION "4.1.53"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
