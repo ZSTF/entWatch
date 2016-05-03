@@ -14,7 +14,7 @@
 #tryinclude <entWatch>
 #tryinclude <csgomorecolors>
 
-#define PLUGIN_VERSION "4.0.1"
+#define PLUGIN_VERSION "4.0.2"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -79,6 +79,7 @@ char g_sRestrictedBy[MAXPLAYERS + 1][64];
 int  g_iRestrictedLength[MAXPLAYERS + 1];
 int  g_iRestrictedIssued[MAXPLAYERS + 1];
 int  g_iAdminMenuTarget[MAXPLAYERS + 1];
+//int  g_iClientHudPref[MAXPLAYERS + 1];
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin settings
