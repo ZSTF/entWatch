@@ -11,11 +11,11 @@
 #include <cstrike>
 #include <clientprefs>
 #include <adminmenu>
-#tryinclude <entWatch>
+#include <entWatch>
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "4.1.53"
+#define PLUGIN_VERSION "4.1.58"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -2632,7 +2632,7 @@ public int Native_IsClientBanned(Handle hPlugin, int iArgC)
 
 	if (iClient < 1 || iClient > MaxClients || !IsClientInGame(iClient) || !AreClientCookiesCached(iClient))
 	{
-		ThrowNativeError(SP_ERROR_PARAM, "Invalid iClient/iClient is not in game or iClient cookies are not yet loaded");
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid client/client is not in game or client cookies are not yet loaded");
 		return false;
 	}
 
@@ -2657,7 +2657,7 @@ public int Native_BanClient(Handle hPlugin, int iArgC)
 
 	if (iClient < 1 || iClient > MaxClients || !IsClientInGame(iClient) || !AreClientCookiesCached(iClient))
 	{
-		ThrowNativeError(SP_ERROR_PARAM, "Invalid iClient/iClient is not in game or iClient cookies are not yet loaded");
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid iClient/iClient is not in game or client cookies are not yet loaded");
 		return false;
 	}
 
@@ -2699,7 +2699,7 @@ public int Native_UnbanClient(Handle hPlugin, int iArgC)
 
 	if (iClient < 1 || iClient > MaxClients || !IsClientInGame(iClient) || !AreClientCookiesCached(iClient))
 	{
-		ThrowNativeError(SP_ERROR_PARAM, "Invalid iClient/iClient is not in game or iClient cookies are not yet loaded");
+		ThrowNativeError(SP_ERROR_PARAM, "Invalid client/client is not in game or client cookies are not yet loaded");
 		return false;
 	}
 

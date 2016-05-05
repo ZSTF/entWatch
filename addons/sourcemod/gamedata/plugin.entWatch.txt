@@ -35,7 +35,7 @@
 				"windows"	"444"
 				"linux"		"445"
 			}
-			"OnPickedup"
+			"OnPickedUp"
 			{
 				"windows"	"336"
 				"linux"		"342"
