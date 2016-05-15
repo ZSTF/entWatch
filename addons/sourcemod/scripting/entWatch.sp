@@ -11,14 +11,41 @@
 #include <cstrike>
 #include <clientprefs>
 #include <adminmenu>
-#include <entWatch>
+#tryinclude <entWatch>
+//#tryinclude <morecolors>
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "4.1.58"
+#define PLUGIN_VERSION "3.8.26"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: Plugin settings
+//----------------------------------------------------------------------------------------------------
+ConVar g_hCvar_DisplayEnabled;
+ConVar g_hCvar_DisplayCooldowns;
+ConVar g_hCvar_ModeTeamOnly;
+ConVar g_hCvar_ConfigColor;
+
+Handle g_hAdminMenu;
+Handle g_hOnBanForward;
+Handle g_hOnUnbanForward;
+
+Menu g_hEntMenu[MAXPLAYERS + 1]	= {null, ...};
+Panel g_hInfoPlayer[MAXPLAYERS + 1] = {null, ...};
+
+EngineVersion g_eGame;
+
+bool g_bRoundTransition  = false;
+bool g_bConfigLoaded     = false;
+bool g_bLateLoad         = false;
+
+Handle g_hGetSlot;
+Handle g_hBumpWeapon;
+Handle g_hOnPickedUp;
+
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Entity data
@@ -85,28 +112,6 @@ int  g_iRestrictedLength[MAXPLAYERS + 1];
 int  g_iRestrictedIssued[MAXPLAYERS + 1];
 int  g_iAdminMenuTarget[MAXPLAYERS + 1];
 
-//----------------------------------------------------------------------------------------------------
-// Purpose: Plugin settings
-//----------------------------------------------------------------------------------------------------
-ConVar g_hCvar_DisplayEnabled;
-ConVar g_hCvar_DisplayCooldowns;
-ConVar g_hCvar_ModeTeamOnly;
-ConVar g_hCvar_ConfigColor;
-
-Handle g_hAdminMenu;
-Handle g_hOnBanForward;
-Handle g_hOnUnbanForward;
-
-Menu g_hEntMenu[MAXPLAYERS + 1]	= {null, ...};
-Panel g_hInfoPlayer[MAXPLAYERS + 1] = {null, ...};
-
-bool g_bRoundTransition  = false;
-bool g_bConfigLoaded     = false;
-bool g_bLateLoad         = false;
-
-Handle g_hGetSlot;
-Handle g_hBumpWeapon;
-Handle g_hOnPickedUp;
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Plugin information
@@ -140,6 +145,18 @@ public APLRes AskPluginLoad2(Handle hThis, bool bLate, char[] sError, int iErr_m
 //----------------------------------------------------------------------------------------------------
 public void OnPluginStart()
 {
+	g_eGame = GetEngineVersion();
+
+	switch (g_eGame)
+	{
+		case Engine_CSS:
+			LogMessage("[entWatch] Game engine detected as Counter Strike: Source.")
+		case Engine_CSGO:
+			LogMessage("[entWatch] Game engine detected as Counter Strike: Global Offensive.")
+		default:
+			SetFailState("[entWatch] Error: Invalid game engine detected! Plugin will be stopped!")
+	}
+
 	CreateConVar("entwatch_version", PLUGIN_VERSION, "Current version of entWatch", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	g_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
@@ -176,8 +193,10 @@ public void OnPluginStart()
 	HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
 
 	CreateTimer(1.0, Timer_DisplayHUD, _, TIMER_REPEAT);
-	CreateTimer(1.0, Timer_NotifHUD, _, TIMER_REPEAT);
 	CreateTimer(1.0, Timer_Cooldowns, _, TIMER_REPEAT);
+
+	if (g_eGame == Engine_CSGO)
+		CreateTimer(1.0, Timer_NotifHUD, _, TIMER_REPEAT);
 
 	LoadTranslations("entWatch.phrases");
 	LoadTranslations("common.phrases");
@@ -990,10 +1009,14 @@ public Action Event_RoundEnd(Event hEvent, const char[] sName, bool bDontBroadca
 	{
 		for (int index = 0; index < entArraySize; index++)
 		{
+			if (g_eGame == Engine_CSGO)
+			{
+				if (entArray[index][ent_ownerid] != -1)
+					CS_SetClientClanTag(entArray[index][ent_ownerid], "");
+			}
 			SDKUnhook(entArray[index][ent_buttonid], SDKHook_Use, OnButtonUse);
 			entArray[index][ent_weaponid]       = -1;
 			entArray[index][ent_buttonid]       = -1;
-			CS_SetClientClanTag(entArray[index][ent_ownerid], "");
 			entArray[index][ent_ownerid]        = -1;
 			entArray[index][ent_cooldowntime]   = -1;
 			entArray[index][ent_uses]           = 0;
@@ -1421,7 +1444,7 @@ public Action OnButtonUse(int iButton, int iActivator, int iCaller, UseType uTyp
 }
 
 //----------------------------------------------------------------------------------------------------
-// Purpose: Display current special weapon holders
+// Purpose: Organize current special weapon holders
 //----------------------------------------------------------------------------------------------------
 public Action Timer_NotifHUD(Handle htimer)
 {
@@ -1430,6 +1453,7 @@ public Action Timer_NotifHUD(Handle htimer)
 		if (g_bConfigLoaded && !g_bRoundTransition)
 		{
 			g_iStoreIndex = 0;
+			char sBuffer_teamtext[5][250];
 
 			for (int index = 0; index < entArraySize; index++)
 			{
@@ -1445,14 +1469,16 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "R", entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 						}
@@ -1462,14 +1488,16 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 						}
@@ -1479,7 +1507,8 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
@@ -1488,14 +1517,16 @@ public Action Timer_NotifHUD(Handle htimer)
 								{
 									Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
 									IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+									if (g_eGame == Engine_CSGO)
+										CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 									g_iStoreIndex++;
 								}
 								else
 								{
 									Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
 									IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+									if (g_eGame == Engine_CSGO)
+										CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 									g_iStoreIndex++;
 								}
 							}
@@ -1506,14 +1537,16 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								if (g_eGame == Engine_CSGO)
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 						}
@@ -1521,7 +1554,8 @@ public Action Timer_NotifHUD(Handle htimer)
 						{
 							Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "N/A", entArray[index][ent_ownerid]);
 							IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-							CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+							if (g_eGame == Engine_CSGO)
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 							g_iStoreIndex++;
 						}
 					}
@@ -1529,51 +1563,58 @@ public Action Timer_NotifHUD(Handle htimer)
 					{
 						Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s: %N\n", entArray[index][ent_shortname], entArray[index][ent_ownerid]);
 						IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-						CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+						if (g_eGame == Engine_CSGO)
+							CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
 						g_iStoreIndex++;
 					}
 
-					// if (strlen(g_sEntIndex[g_iStoreIndex]) + strlen(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])]) <= sizeof(sBuffer_teamtext[]))
-					// {
-					// 	StrCat(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])], sizeof(sBuffer_teamtext[]), g_sEntIndex[g_iStoreIndex]);
-					// }
+					if (g_eGame == Engine_CSS)
+					{
+						if (strlen(g_sEntIndex[g_iStoreIndex]) + strlen(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])]) <= sizeof(sBuffer_teamtext[]))
+						{
+							StrCat(sBuffer_teamtext[GetClientTeam(entArray[index][ent_ownerid])], sizeof(sBuffer_teamtext[]), g_sEntIndex[g_iStoreIndex]);
+						}
+					}
 				}
 			}
 
-			// CSS Style HUD
-			// for (int iPly = 1; iPly <= MaxClients; iPly++)
-			// {
-			// 	if (IsClientConnected(iPly) && IsClientInGame(iPly))
-			// 	{
-			// 		if (g_bDisplay[iPly])
-			// 		{
-			// 			char sBuffer_text[250];
+			//CSS Style HUD
+			if (g_eGame == Engine_CSS)
+			{
+				for (int iPly = 1; iPly <= MaxClients; iPly++)
+				{
+					if (IsClientConnected(iPly) && IsClientInGame(iPly))
+					{
+						if (g_bDisplay[iPly])
+						{
+							char sBuffer_text[250];
 
-			// 			for (int iTeamid = 0; iTeamid < sizeof(sBuffer_teamtext); iTeamid++)
-			// 			{
-			// 				if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(iPly) == iTeamid || !IsPlayerAlive(iPly) || CheckCommandAccess(iPly, "entWatch_chat", ADMFLAG_CHAT)))
-			// 				{
-			// 					if (strlen(sBuffer_teamtext[iTeamid]) + strlen(sBuffer_text) <= sizeof(sBuffer_text))
-			// 					{
-			// 						StrCat(sBuffer_text, sizeof(sBuffer_text), sBuffer_teamtext[iTeamid]);
-			// 					}
-			// 				}
-			// 			}
+							for (int iTeamid = 0; iTeamid < sizeof(sBuffer_teamtext); iTeamid++)
+							{
+								if (!GetConVarBool(g_hCvar_ModeTeamOnly) || (GetConVarBool(g_hCvar_ModeTeamOnly) && GetClientTeam(iPly) == iTeamid || !IsPlayerAlive(iPly) || CheckCommandAccess(iPly, "entWatch_chat", ADMFLAG_CHAT)))
+								{
+									if (strlen(sBuffer_teamtext[iTeamid]) + strlen(sBuffer_text) <= sizeof(sBuffer_text))
+									{
+										StrCat(sBuffer_text, sizeof(sBuffer_text), sBuffer_teamtext[iTeamid]);
+									}
+								}
+							}
 
-						
-						
-					
-			// 			// Handle hBuffer = StartMessageOne("KeyHintText", iPly);
-			// 			// BfWriteByte(hBuffer, 1);
-			// 			// BfWriteString(hBuffer, sBuffer_text);
-			// 			// EndMessage();
-			// 		}
-			// 	}
-			// }
+							Handle hBuffer = StartMessageOne("KeyHintText", iPly);
+							BfWriteByte(hBuffer, 1);
+							BfWriteString(hBuffer, sBuffer_text);
+							EndMessage();
+						}
+					}
+				}
+			}
 		}
 	}
 }
 
+//----------------------------------------------------------------------------------------------------
+// Purpose: Display current special weapon holders
+//----------------------------------------------------------------------------------------------------
 public Action Timer_DisplayHUD(Handle hTimer)
 {
 	for (int iClient = 1; iClient <= MaxClients; iClient++)

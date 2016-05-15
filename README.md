@@ -1,6 +1,6 @@
 # entWatch
 
-A Counter-Strike: Source entity monitoring plugin written for SourceMod (in SourcePawn).
+A Counter-Strike: Source & Global Offensive entity monitoring plugin written for SourceMod (in SourcePawn).
 
 The focus of entWatch is to monitor special map items found in Zombie Reloaded based maps.
 
