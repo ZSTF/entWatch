@@ -16,36 +16,10 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "3.8.26"
+#define PLUGIN_VERSION "3.8.27"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
-
-//----------------------------------------------------------------------------------------------------
-// Purpose: Plugin settings
-//----------------------------------------------------------------------------------------------------
-ConVar g_hCvar_DisplayEnabled;
-ConVar g_hCvar_DisplayCooldowns;
-ConVar g_hCvar_ModeTeamOnly;
-ConVar g_hCvar_ConfigColor;
-
-Handle g_hAdminMenu;
-Handle g_hOnBanForward;
-Handle g_hOnUnbanForward;
-
-Menu g_hEntMenu[MAXPLAYERS + 1]	= {null, ...};
-Panel g_hInfoPlayer[MAXPLAYERS + 1] = {null, ...};
-
-EngineVersion g_eGame;
-
-bool g_bRoundTransition  = false;
-bool g_bConfigLoaded     = false;
-bool g_bLateLoad         = false;
-
-Handle g_hGetSlot;
-Handle g_hBumpWeapon;
-Handle g_hOnPickedUp;
-
 
 //----------------------------------------------------------------------------------------------------
 // Purpose: Entity data
@@ -111,6 +85,32 @@ char g_sRestrictedBy[MAXPLAYERS + 1][64];
 int  g_iRestrictedLength[MAXPLAYERS + 1];
 int  g_iRestrictedIssued[MAXPLAYERS + 1];
 int  g_iAdminMenuTarget[MAXPLAYERS + 1];
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: Plugin settings
+//----------------------------------------------------------------------------------------------------
+ConVar g_hCvar_DisplayEnabled;
+ConVar g_hCvar_DisplayCooldowns;
+ConVar g_hCvar_ModeTeamOnly;
+ConVar g_hCvar_ConfigColor;
+
+Handle g_hAdminMenu;
+Handle g_hOnBanForward;
+Handle g_hOnUnbanForward;
+
+Menu g_hEntMenu[MAXPLAYERS + 1]	= {null, ...};
+Panel g_hInfoPlayer[MAXPLAYERS + 1] = {null, ...};
+
+EngineVersion g_eGame;
+
+bool g_bRoundTransition  = false;
+bool g_bConfigLoaded     = false;
+bool g_bLateLoad         = false;
+
+Handle g_hGetSlot;
+Handle g_hBumpWeapon;
+Handle g_hOnPickedUp;
+
 
 
 //----------------------------------------------------------------------------------------------------
