@@ -129,12 +129,12 @@ public APLRes:AskPluginLoad2(Handle:hThis, bool:bLate, String:sError[], err_max)
 //----------------------------------------------------------------------------------------------------
 public OnPluginStart()
 {
-	CreateConVar("entwatch_version", PLUGIN_VERSION, "Current version of entWatch", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("entwatch_version", PLUGIN_VERSION, "Current version of entWatch", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
-	g_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	g_hCvar_DisplayCooldowns  = CreateConVar("entwatch_display_cooldowns", "1", "Show/Hide the cooldowns on the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	g_hCvar_ModeTeamOnly      = CreateConVar("entwatch_mode_teamonly", "1", "Enable/Disable team only mode.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	g_hCvar_ConfigColor       = CreateConVar("entwatch_config_color", "color_classic", "The name of the color config.", FCVAR_PLUGIN);
+	g_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_hCvar_DisplayCooldowns  = CreateConVar("entwatch_display_cooldowns", "1", "Show/Hide the cooldowns on the display.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_hCvar_ModeTeamOnly      = CreateConVar("entwatch_mode_teamonly", "1", "Enable/Disable team only mode.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_hCvar_ConfigColor       = CreateConVar("entwatch_config_color", "color_classic", "The name of the color config.", FCVAR_NONE);
 
 	g_hCookie_Display     = RegClientCookie("entwatch_display", "", CookieAccess_Private);
 	g_hCookie_Restricted  = RegClientCookie("entwatch_restricted", "", CookieAccess_Private);
@@ -1222,9 +1222,6 @@ public Action:OnWeaponDrop(client, weapon)
 //----------------------------------------------------------------------------------------------------
 public Action:OnWeaponCanUse(client, weapon)
 {
-	if (IsFakeClient(client))
-		return Plugin_Handled;
-
 	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(weapon))
 	{
 		for (new index = 0; index < entArraySize; index++)
@@ -1303,7 +1300,7 @@ public Action:OnButtonUse(button, activator, caller, UseType:type, Float:value)
 {
 	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(button))
 	{
-		int iOffset = FindDataMapOffs(button, "m_bLocked");
+		int iOffset = FindDataMapInfo(button, "m_bLocked");
 		if (iOffset != -1 && GetEntData(button, iOffset, 1))
 			return Plugin_Handled;
 
@@ -1772,7 +1769,10 @@ public Action:Command_EBanlist(client, args)
 
 	for (new i = 1; i < MaxClients + 1; i++)
 	{
-		if (IsClientInGame(i) && AreClientCookiesCached(i))
+		if (!IsClientInGame(i))
+			continue;
+
+		if (AreClientCookiesCached(i))
 		{
 			decl String:sBanLen[32];
 			GetClientCookie(i, g_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
@@ -1793,6 +1793,21 @@ public Action:Command_EBanlist(client, args)
 				new iUserID = GetClientUserId(i);
 				Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
 			}
+		}
+		else if (g_bRestricted[i])
+		{
+			if (bFirst)
+			{
+				bFirst = false;
+				Format(sBuff, sizeof(sBuff), "");
+			}
+			else
+			{
+				Format(sBuff, sizeof(sBuff), "%s, ", sBuff);
+			}
+
+			new iUserID = GetClientUserId(i);
+			Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
 		}
 	}
 

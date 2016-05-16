@@ -31,6 +31,7 @@ You need to follow a few simple instructions to install entWatch:
 * ze_biohazard_manor_v4a_004
 * ze_bioshock_v5_6
 * ze_boredom_v543656
+* ze_castlevania_v1_3
 * ze_christmas_infection_v2_3
 * ze_crashbandicoot_v1fix
 * ze_cyberderp_v1_4
