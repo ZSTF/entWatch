@@ -16,7 +16,7 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "3.8.122"
+#define PLUGIN_VERSION "3.8.126"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -1963,7 +1963,10 @@ public Action Command_EBanlist(int iClient, int iArgs)
 
 	for (int i = 1; i < MaxClients + 1; i++)
 	{
-		if (IsClientInGame(i) && AreClientCookiesCached(i))
+		if(!IsClientInGame(i))
+			continue;
+
+		if (AreClientCookiesCached(i))
 		{
 			char sBanLen[32];
 			GetClientCookie(i, g_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
@@ -1984,6 +1987,21 @@ public Action Command_EBanlist(int iClient, int iArgs)
 				int iUserID = GetClientUserId(i);
 				Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
 			}
+		}
+		else if (g_bRestricted[i])
+		{
+			if (bFirst)
+ 			{
+ 				bFirst = false;
+ 				Format(sBuff, sizeof(sBuff), "");
+ 			}
+ 			else
+ 			{
+ 				Format(sBuff, sizeof(sBuff), "%s, ", sBuff);
+ 			}
+ 
+ 			int iUserID = GetClientUserId(i);
+ 			Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
 		}
 	}
 
@@ -2448,8 +2466,6 @@ stock void LoadColors()
 	KvGetString(hKeyValues, "color_glow_alpha", sBuffer_temp, sizeof(sBuffer_temp));
 	g_iGlowColor[3] = StringToInt(sBuffer_temp);
 
-	CPrintToChatAll("rgb %i %i %i %i", g_iGlowColor[0], g_iGlowColor[1], g_iGlowColor[2], g_iGlowColor[3]);
-
 	CloseHandle(hKeyValues);
 }
 
@@ -2569,8 +2585,6 @@ stock void GlowWeapon(int index)
 {
 	if (!IsValidEdict(entArray[index][ent_glowent]))
 	{
-		CPrintToChatAll("Creating glow entity");
-		LogMessage("Creating glow entity");
 		char sModelPath[PLATFORM_MAX_PATH];
 		float fWOrigin[3];
 		float fWAngle[3];
@@ -2613,7 +2627,7 @@ stock void GlowWeapon(int index)
 	}
 	else
 	{
-		CPrintToChatAll("Failed glow entity so going to set the entity");
+
 		AcceptEntityInput(entArray[index][ent_glowent], "TurnOn");
 	}
 	
@@ -2627,11 +2641,6 @@ stock void DisableGlow(int index)
 	{
 		AcceptEntityInput(entArray[index][ent_glowent], "TurnOff");
 	}
-
-	// int iKillAlpha[4] = {0, 0, 0, 0};
-	// // Turn down the glow effect
-	// SetVariantColor(iKillAlpha);
-	// AcceptEntityInput(entArray[index][ent_glowent], "SetGlowColor");
 }
 
 
