@@ -16,7 +16,7 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "3.8.122"
+#define PLUGIN_VERSION "3.8.124"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -1963,7 +1963,10 @@ public Action Command_EBanlist(int iClient, int iArgs)
 
 	for (int i = 1; i < MaxClients + 1; i++)
 	{
-		if (IsClientInGame(i) && AreClientCookiesCached(i))
+		if(!IsClientInGame(i))
+			continue;
+
+		if (AreClientCookiesCached(i))
 		{
 			char sBanLen[32];
 			GetClientCookie(i, g_hCookie_RestrictedLength, sBanLen, sizeof(sBanLen));
@@ -1984,6 +1987,21 @@ public Action Command_EBanlist(int iClient, int iArgs)
 				int iUserID = GetClientUserId(i);
 				Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
 			}
+		}
+		else if (g_bRestricted[i])
+		{
+			if (bFirst)
+ 			{
+ 				bFirst = false;
+ 				Format(sBuff, sizeof(sBuff), "");
+ 			}
+ 			else
+ 			{
+ 				Format(sBuff, sizeof(sBuff), "%s, ", sBuff);
+ 			}
+ 
+ 			int iUserID = GetClientUserId(i);
+ 			Format(sBuff, sizeof(sBuff), "%s%N (#%i)", sBuff, i, iUserID);
 		}
 	}
 
