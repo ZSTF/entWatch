@@ -16,7 +16,7 @@
 #tryinclude <csgomorecolors>
 
 
-#define PLUGIN_VERSION "3.8.37"
+#define PLUGIN_VERSION "3.8.122"
 #undef REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -46,7 +46,7 @@ enum entities
 	ent_maxuses,
 	ent_cooldown,
 	ent_cooldowntime,
-	ent_pickupcount,
+	ent_glowent,
 };
 
 int entArray[512][entities];
@@ -102,6 +102,8 @@ Handle g_hOnUnbanForward;
 Menu g_hEntMenu[MAXPLAYERS + 1]	= {null, ...};
 Panel g_hInfoPlayer[MAXPLAYERS + 1] = {null, ...};
 
+int g_iGlowColor[4];
+
 bool g_bRoundTransition  = false;
 bool g_bConfigLoaded     = false;
 bool g_bLateLoad         = false;
@@ -144,12 +146,12 @@ public APLRes AskPluginLoad2(Handle hThis, bool bLate, char[] sError, int iErr_m
 //----------------------------------------------------------------------------------------------------
 public void OnPluginStart()
 {
-	CreateConVar("entwatch_version", PLUGIN_VERSION, "Current version of entWatch", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
+	CreateConVar("entwatch_version", PLUGIN_VERSION, "Current version of entWatch", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
-	g_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	g_hCvar_DisplayCooldowns  = CreateConVar("entwatch_display_cooldowns", "1", "Show/Hide the cooldowns on the display.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	g_hCvar_ModeTeamOnly      = CreateConVar("entwatch_mode_teamonly", "1", "Enable/Disable team only mode.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-	g_hCvar_ConfigColor       = CreateConVar("entwatch_config_color", "color_classic", "The name of the color config.", FCVAR_PLUGIN);
+	g_hCvar_DisplayEnabled    = CreateConVar("entwatch_display_enable", "1", "Enable/Disable the display.", _, true, 0.0, true, 1.0);
+	g_hCvar_DisplayCooldowns  = CreateConVar("entwatch_display_cooldowns", "1", "Show/Hide the cooldowns on the display.", _, true, 0.0, true, 1.0);
+	g_hCvar_ModeTeamOnly      = CreateConVar("entwatch_mode_teamonly", "1", "Enable/Disable team only mode.", _, true, 0.0, true, 1.0);
+	g_hCvar_ConfigColor       = CreateConVar("entwatch_config_color", "color_classic", "The name of the color config.", _);
 
 	g_hCookie_Display     = RegClientCookie("entwatch_display", "", CookieAccess_Private);
 	g_hCookie_Restricted  = RegClientCookie("entwatch_restricted", "", CookieAccess_Private);
@@ -994,8 +996,6 @@ public Action Event_RoundEnd(Event hEvent, const char[] sName, bool bDontBroadca
 	{
 		for (int index = 0; index < entArraySize; index++)
 		{
-
-			
 			if (entArray[index][ent_ownerid] != -1)
 				CS_SetClientClanTag(entArray[index][ent_ownerid], "");
 
@@ -1005,7 +1005,7 @@ public Action Event_RoundEnd(Event hEvent, const char[] sName, bool bDontBroadca
 			entArray[index][ent_ownerid]        = -1;
 			entArray[index][ent_cooldowntime]   = -1;
 			entArray[index][ent_uses]           = 0;
-			entArray[index][ent_onpickupcount] = 0;
+			DisableGlow(index)
 		}
 	}
 
@@ -1086,10 +1086,11 @@ public void OnClientDisconnect(int iClient)
 			{
 				entArray[index][ent_ownerid] = -1;
 
-
 				if (entArray[index][ent_forcedrop] && IsValidEdict(entArray[index][ent_weaponid]))
+				{
 					CS_DropWeapon(iClient, entArray[index][ent_weaponid], false); // Add glow function on drop
-					GlowWeapon(index);
+					
+				}
 
 				if (entArray[index][ent_chat])
 				{
@@ -1138,8 +1139,9 @@ public Action Event_PlayerDeath(Event hEvent, const char[] sName, bool bDontBroa
 				entArray[index][ent_ownerid] = -1;
 
 				if (entArray[index][ent_forcedrop] && IsValidEdict(entArray[index][ent_weaponid]))
+				{
 					CS_DropWeapon(iClient, entArray[index][ent_weaponid], false);
-					GlowWeapon(index);
+				}
 
 				if (entArray[index][ent_chat])
 				{
@@ -1177,8 +1179,7 @@ public Action OnWeaponEquip(int iClient, int iWeapon)
 				if (entArray[index][ent_weaponid] != -1 && entArray[index][ent_weaponid] == iWeapon)
 				{
 					entArray[index][ent_ownerid] = iClient;
-					++entArray[index][ent_onpickupcount];
-					if (entArray[index][ent_onpickupcount] > 0)
+					if (IsValidEdict(entArray[index][ent_glowent]))
 						DisableGlow(index);
 
 					if (entArray[index][ent_chat])
@@ -1219,9 +1220,9 @@ public Action OnWeaponDrop(int iClient, int iWeapon)
 			{
 				if (entArray[index][ent_weaponid] != -1 && entArray[index][ent_weaponid] == iWeapon)
 				{
+					GlowWeapon(index);
 					CS_SetClientClanTag(entArray[index][ent_ownerid], "");
 					entArray[index][ent_ownerid] = -1;
-					GlowWeapon(index);
 
 					if (entArray[index][ent_chat])
 					{
@@ -1246,21 +1247,6 @@ public Action OnWeaponDrop(int iClient, int iWeapon)
 			}
 		}
 	}
-}
-
-//----------------------------------------------------------------------------------------------------
-// Purpose: Glow weapon on Drop weapons
-//----------------------------------------------------------------------------------------------------
-void GlowWeapon(int iIndex)
-{
-	SetEntProp(entArray[iIndex][ent_weaponid], Prop_Send, "m_bShouldGlow", true, true);
-	SetEntProp(entArray[iIndex][ent_weaponid], Prop_Send, "m_nGlowStyle", 0);
-	SetEntPropFloat(entArray[iIndex][ent_weaponid], Prop_Send, "m_flGlowMaxDist", 10000000.0);
-}
-
-void DisableGlow(int iIndex)
-{
-	SetEntProp(entArray[iIndex][ent_weaponid], Prop_Send, "m_bShouldGlow", false, false);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -1349,7 +1335,7 @@ public Action OnButtonUse(int iButton, int iActivator, int iCaller, UseType uTyp
 {
 	if (g_bConfigLoaded && !g_bRoundTransition && IsValidEdict(iButton))
 	{
-		int iOffset = FindDataMapOffs(iButton, "m_bLocked");
+		int iOffset = FindDataMapInfo(iButton, "m_bLocked");
 		if (iOffset != -1 && GetEntData(iButton, iOffset, 1))
 			return Plugin_Handled;
 
@@ -1477,14 +1463,14 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "R", entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 						}
@@ -1494,14 +1480,14 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 						}
@@ -1511,7 +1497,7 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
@@ -1520,14 +1506,14 @@ public Action Timer_NotifHUD(Handle htimer)
 								{
 									Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
 									IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 									g_iStoreIndex++;
 								}
 								else
 								{
 									Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "D", entArray[index][ent_ownerid]);
 									IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+									CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 									g_iStoreIndex++;
 								}
 							}
@@ -1538,14 +1524,14 @@ public Action Timer_NotifHUD(Handle htimer)
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_cooldowntime], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 							else
 							{
 								Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%d/%d]: %N\n", entArray[index][ent_shortname], entArray[index][ent_uses], entArray[index][ent_maxuses], entArray[index][ent_ownerid]);
 								IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+								CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 								g_iStoreIndex++;
 							}
 						}
@@ -1553,7 +1539,7 @@ public Action Timer_NotifHUD(Handle htimer)
 						{
 							Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s[%s]: %N\n", entArray[index][ent_shortname], "N/A", entArray[index][ent_ownerid]);
 							IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-							CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+							CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 							g_iStoreIndex++;
 						}
 					}
@@ -1561,7 +1547,7 @@ public Action Timer_NotifHUD(Handle htimer)
 					{
 						Format(g_sEntMsg[g_iStoreIndex], sizeof(g_sEntMsg[]), "%s: %N\n", entArray[index][ent_shortname], entArray[index][ent_ownerid]);
 						IntToString(index, g_sEntIndex[g_iStoreIndex], sizeof(g_sEntIndex[]));
-						CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntIndex[g_iStoreIndex]);
+						CS_SetClientClanTag(entArray[index][ent_ownerid], g_sEntMsg[g_iStoreIndex]);
 						g_iStoreIndex++;
 					}
 
@@ -2395,6 +2381,7 @@ void CleanData()
 		entArray[index][ent_maxuses]        = 0;
 		entArray[index][ent_cooldown]       = 0;
 		entArray[index][ent_cooldowntime]   = -1;
+		entArray[index][ent_glowent]		= -1;
 	}
 
 	for (int index = 0; index < triggerSize; index++)
@@ -2448,6 +2435,20 @@ stock void LoadColors()
 
 	KvGetString(hKeyValues, "color_warning", sBuffer_temp, sizeof(sBuffer_temp));
 	Format(color_warning, sizeof(color_warning), "%s", sBuffer_temp);
+
+	KvGetString(hKeyValues, "color_glow_red", sBuffer_temp, sizeof(sBuffer_temp));
+	g_iGlowColor[0] = StringToInt(sBuffer_temp);
+
+	KvGetString(hKeyValues, "color_glow_green", sBuffer_temp, sizeof(sBuffer_temp));
+	g_iGlowColor[1] = StringToInt(sBuffer_temp);
+
+	KvGetString(hKeyValues, "color_glow_blue", sBuffer_temp, sizeof(sBuffer_temp));
+	g_iGlowColor[2] = StringToInt(sBuffer_temp);
+
+	KvGetString(hKeyValues, "color_glow_alpha", sBuffer_temp, sizeof(sBuffer_temp));
+	g_iGlowColor[3] = StringToInt(sBuffer_temp);
+
+	CPrintToChatAll("rgb %i %i %i %i", g_iGlowColor[0], g_iGlowColor[1], g_iGlowColor[2], g_iGlowColor[3]);
 
 	CloseHandle(hKeyValues);
 }
@@ -2560,6 +2561,79 @@ stock void LoadConfig()
 
 	CloseHandle(hKeyValues);
 }
+
+//----------------------------------------------------------------------------------------------------
+// Purpose: init Glow weapon on Drop weapons
+//----------------------------------------------------------------------------------------------------
+stock void GlowWeapon(int index)
+{
+	if (!IsValidEdict(entArray[index][ent_glowent]))
+	{
+		CPrintToChatAll("Creating glow entity");
+		LogMessage("Creating glow entity");
+		char sModelPath[PLATFORM_MAX_PATH];
+		float fWOrigin[3];
+		float fWAngle[3];
+
+		// Get the original model path
+		GetEntPropString(entArray[index][ent_weaponid], Prop_Data, "m_ModelName", sModelPath, sizeof(sModelPath));
+		ReplaceString(sModelPath, sizeof(sModelPath), "_dropped", "");
+		
+		// Find the location of the weapon
+		GetEntPropVector(entArray[index][ent_weaponid], Prop_Send, "m_vecOrigin", fWOrigin);
+		GetEntPropVector(entArray[index][ent_weaponid], Prop_Send, "m_angRotation", fWAngle);
+
+		// Create & set dynamic glow entity and give properties
+		entArray[index][ent_glowent] = CreateEntityByName("prop_dynamic_glow");
+		
+		DispatchKeyValue(entArray[index][ent_glowent], "model", sModelPath);
+		DispatchKeyValue(entArray[index][ent_glowent], "disablereceiveshadows", "1");
+		DispatchKeyValue(entArray[index][ent_glowent], "disableshadows", "1");
+		DispatchKeyValue(entArray[index][ent_glowent], "solid", "0");
+		DispatchKeyValue(entArray[index][ent_glowent], "spawnflags", "256");
+		SetEntProp(entArray[index][ent_glowent], Prop_Send, "m_CollisionGroup", 11);
+		
+		// Spawn and teleport the entity
+		DispatchSpawn(entArray[index][ent_glowent]);
+		TeleportEntity(entArray[index][ent_glowent], fWOrigin, fWAngle, NULL_VECTOR);
+
+		// Give glowing effect to the entity
+		SetEntProp(entArray[index][ent_glowent], Prop_Send, "m_bShouldGlow", true, true);
+		SetEntPropFloat(entArray[index][ent_glowent], Prop_Send, "m_flGlowMaxDist", 10000000.0);
+
+		// Set glowing color
+		SetVariantColor(g_iGlowColor);
+		AcceptEntityInput(entArray[index][ent_glowent], "SetGlowColor");
+
+		// Set the activator and group the entity
+		SetVariantString("!activator");
+		AcceptEntityInput(entArray[index][ent_glowent], "SetParent", entArray[index][ent_weaponid]);
+
+		AcceptEntityInput(entArray[index][ent_glowent], "TurnOn");
+	}
+	else
+	{
+		CPrintToChatAll("Failed glow entity so going to set the entity");
+		AcceptEntityInput(entArray[index][ent_glowent], "TurnOn");
+	}
+	
+}
+//----------------------------------------------------------------------------------------------------
+// Purpose: Disable glow
+//----------------------------------------------------------------------------------------------------
+stock void DisableGlow(int index)
+{
+	if (IsValidEdict(entArray[index][ent_glowent]))
+	{
+		AcceptEntityInput(entArray[index][ent_glowent], "TurnOff");
+	}
+
+	// int iKillAlpha[4] = {0, 0, 0, 0};
+	// // Turn down the glow effect
+	// SetVariantColor(iKillAlpha);
+	// AcceptEntityInput(entArray[index][ent_glowent], "SetGlowColor");
+}
+
 
 public Action Command_ReloadConfig(int iClient, int iArgs)
 {
