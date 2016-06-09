@@ -37,6 +37,7 @@ You need to follow a few simple instructions to install entWatch:
 * ze_cyberderp_v1_4
 * ze_death_star_escape_v4_3
 * ze_doom_v1_1
+* ze_fapescape_rote_v1_3c
 * ze_fapescape_v1_2
 * ze_ffvii_mako_reactor_v1_4_1
 * ze_ffvii_mako_reactor_v3_1
@@ -67,6 +68,8 @@ You need to follow a few simple instructions to install entWatch:
 * ze_minecraft_adventure_v1_2c
 * ze_paper_escaper_v6_6c2
 * ze_paranoid_rezurrection_v11_9
+* ze_parking_v2a
+* ze_parking_v3_1
 * ze_pirates_port_royal_v3_6
 * ze_portal_story_v3_2
 * ze_potc_v3_4fix
@@ -80,6 +83,7 @@ You need to follow a few simple instructions to install entWatch:
 * ze_tesv_skyrim_v3
 * ze_tesv_skyrim_v4fix
 * ze_toaster_v1_2
+* ze_tyranny_v1
 * ze_ut2004_convoy_v2_2_1
 * Maps that have entWatch configs packaged into the bsp.
 
